@@ -777,6 +777,9 @@ function BracketGrid({
 }) {
   if (!sim.bracketStarted) return null;
   const pickCount = Object.keys(forcedPicks).length;
+  const finalFourRounds = sim.predicted_bracket["FinalFour"] || [];
+  const finalFourGames = finalFourRounds[0] || [];
+  const titleGames = finalFourRounds[1] || [];
   return (
     <div style={{border:`1px solid ${BORDER_OUTER}`,overflowX:"auto",background:"#fff"}}>
       <div style={{padding:"6px 10px",background:BG_ALT,borderBottom:`1px solid ${BORDER_SUBTLE}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
@@ -805,18 +808,25 @@ function BracketGrid({
       {sim.complete && (
         <div style={{borderTop:`1px solid ${BORDER_INNER}`,display:"grid",gridTemplateColumns:"1fr 1fr 1fr"}}>
           {[
-            {label:"FINAL FOUR · SF1", teams:top(sim.final_four_pct,4).slice(0,2)},
-            {label:"FINAL FOUR · SF2", teams:top(sim.final_four_pct,4).slice(2,4)},
-            {label:"NATIONAL CHAMPIONSHIP", teams:top(sim.champion_pct,3)},
-          ].map(({label,teams},i)=>(
+            {label:"FINAL FOUR · SF1", game:finalFourGames[0]},
+            {label:"FINAL FOUR · SF2", game:finalFourGames[1]},
+            {label:"NATIONAL CHAMPIONSHIP", game:titleGames[0]},
+          ].map(({label,game},i)=>(
             <div key={label} style={{padding:"10px 12px",borderRight:i<2?"1px solid #000":"none"}}>
               <div style={{fontSize:8,letterSpacing:"0.1em",fontWeight:700,color:"#888",marginBottom:6}}>{label}</div>
-              {teams.map(([team,p],j)=>(
-                <div key={team} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
-                  <span style={{fontSize:11,fontWeight:j===0?700:400}}>{team}</span>
-                  <span style={{fontSize:10,color:"#666"}}>{pct(p)}</span>
-                </div>
-              ))}
+              {game ? (
+                [
+                  {team: game.team_a, p: game.win_prob_a, won: game.winner === game.team_a},
+                  {team: game.team_b, p: 100 - game.win_prob_a, won: game.winner === game.team_b},
+                ].map(({team,p,won})=>(
+                  <div key={team} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
+                    <span style={{fontSize:11,fontWeight:won?700:400}}>{team}</span>
+                    <span style={{fontSize:10,color:"#666"}}>{pct(p,1)}</span>
+                  </div>
+                ))
+              ) : (
+                <div style={{fontSize:10,color:"#999"}}>Waiting for projected finals...</div>
+              )}
             </div>
           ))}
         </div>
@@ -940,9 +950,11 @@ export default function App() {
   const allTeams = simTeams.length > 0 ? simTeams : catalogTeams;
   const hasFF = sim.complete&&Object.keys(sim.first_four_pct||{}).length>0;
   const champ = top(sim.champion_pct,1)[0];
-  const leaderName = champ?.[0] || "Waiting for simulation";
-  const leaderPct = champ ? pct(champ[1]) : "—";
-  const leaderPctNum = champ?.[1] ?? 0;
+  const projectedChampionGame = sim.predicted_bracket["FinalFour"]?.[1]?.[0];
+  const projectedChampionName = projectedChampionGame?.winner;
+  const leaderName = sim.complete ? (projectedChampionName || champ?.[0] || "Waiting for simulation") : (champ?.[0] || "Waiting for simulation");
+  const leaderPctNum = leaderName && sim.champion_pct[leaderName] ? sim.champion_pct[leaderName] : (champ?.[1] ?? 0);
+  const leaderPct = leaderPctNum > 0 ? pct(leaderPctNum) : "—";
   const finalFourTop = top(sim.final_four_pct || {}, 4);
   const ffMax = finalFourTop[0]?.[1] || 1;
   const lockedCount = Object.keys(forcedPicks).length;
@@ -960,7 +972,7 @@ export default function App() {
       <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,padding:12,marginBottom:14,background:"#fff"}}>
         <div className="hero-grid">
           <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14}}>
-            <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:4,textTransform:"uppercase"}}>{sim.complete?"Projected Champion":"Current Leader"}</div>
+            <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:4,textTransform:"uppercase"}}>{sim.complete?"Projected Bracket Champion":"Current Leader"}</div>
             <div style={{fontSize:26,fontWeight:700,lineHeight:1.05}}>{leaderName}</div>
             <div style={{fontSize:12,color:"#6b7280",marginTop:5}}>{leaderPct}</div>
             {leaderPctNum > 0 && (

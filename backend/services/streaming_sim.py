@@ -163,6 +163,34 @@ def run_streaming_simulation(
                 games_out.append(round_games)
         return round_winners, cur[0].name, games_out
 
+    def _project_game(region: str, round_i: int, gi: int, ta: Team, tb: Team):
+        prob, var, bd = compute_matchup_prob(ta, tb, cfg, cache, 0.0, 0.0)
+        forced_name = forced.get(_forced_key(region, round_i, gi))
+        if forced_name == ta.name:
+            winner = ta
+        elif forced_name == tb.name:
+            winner = tb
+        else:
+            winner = ta if prob >= 0.5 else tb
+
+        score_a, score_b = _simulate_scores(prob, winner.name == ta.name)
+        return {
+            "team_a": ta.name,
+            "team_b": tb.name,
+            "seed_a": ta.seed,
+            "seed_b": tb.seed,
+            "win_prob_a": round(prob * 100, 1),
+            "winner": winner.name,
+            "upset": winner.seed > min(ta.seed, tb.seed),
+            "expected_margin": round(abs(ta.avg_mov * prob - tb.avg_mov * (1 - prob)), 1),
+            "volatility": round(var * 100, 1),
+            "breakdown": bd,
+            "forced_pick": forced_name in (ta.name, tb.name),
+            "score_note": "Synthetic score estimate for presentation only.",
+            "score_a": score_a,
+            "score_b": score_b,
+        }
+
     for i in range(n_sims):
         # Latent draws
         latent: Dict[str, float] = {}
@@ -306,6 +334,19 @@ def run_streaming_simulation(
                 game["score_a"] = sa
                 game["score_b"] = sb
         projected[region] = rounds
+
+    projected_region_champs = {
+        region: base_teams_objs[projected[region][-1][0]["winner"]]
+        for region in REGIONS
+        if projected.get(region) and projected[region][-1]
+    }
+    if len(projected_region_champs) == 4:
+        sf1_game = _project_game("FinalFour", 0, 0, projected_region_champs["East"], projected_region_champs["Midwest"])
+        sf2_game = _project_game("FinalFour", 0, 1, projected_region_champs["West"], projected_region_champs["South"])
+        sf1_winner = base_teams_objs[sf1_game["winner"]]
+        sf2_winner = base_teams_objs[sf2_game["winner"]]
+        title_game = _project_game("FinalFour", 1, 0, sf1_winner, sf2_winner)
+        projected["FinalFour"] = [[sf1_game, sf2_game], [title_game]]
 
     upsets = build_upset_watch(
         {r: build_region_bracket({t.seed: t for t in base_teams_objs.values() if t.region == r})
