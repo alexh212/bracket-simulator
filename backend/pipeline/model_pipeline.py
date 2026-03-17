@@ -466,14 +466,12 @@ def run_model_pipeline(save: bool = True, verbose: bool = True) -> Dict:
     df_sym = build_features(df_sym)
 
     if verbose:
-        print("=" * 62)
-        print(f"MODEL PIPELINE — {MODEL_VERSION}")
-        print("=" * 62)
+        print(f"Model pipeline {MODEL_VERSION}")
         print(f"Training data: {len(df_sym)} rows × {len(df_sym.columns)} features")
 
     # Rolling-origin CV
     if verbose:
-        print("\nRunning rolling-origin season CV (this takes a moment)...")
+        print("\nRolling-origin season CV...")
     cv_df = rolling_cv_model_stack(df_sym, min_train=6)
 
     if not cv_df.empty and "log_loss" in cv_df.columns:
@@ -482,9 +480,7 @@ def run_model_pipeline(save: bool = True, verbose: bool = True) -> Dict:
         cv_summary = pd.DataFrame()
 
     if verbose and not cv_summary.empty:
-        print(f"\n{'='*62}")
-        print("ROLLING-ORIGIN CV RESULTS")
-        print(f"{'='*62}")
+        print("\nRolling-origin CV results")
         sorted_cv = cv_summary.sort_values("log_loss")
         print(sorted_cv.round(4).to_string())
 
@@ -503,9 +499,7 @@ def run_model_pipeline(save: bool = True, verbose: bool = True) -> Dict:
 
     # Train final models on full dataset
     if verbose:
-        print(f"\n{'='*62}")
-        print("TRAINING FINAL MODELS (full dataset)")
-        print(f"{'='*62}")
+        print("\nFinal models (full dataset)")
 
     final_models = {}
     y_full = df_sym["team_a_won"].values
@@ -563,17 +557,13 @@ def run_model_pipeline(save: bool = True, verbose: bool = True) -> Dict:
     # Feature importance from best tree model
     if verbose and "lightgbm" in final_models:
         lgb_m = final_models["lightgbm"]["model"]
-        print(f"\n{'='*62}")
-        print("TOP FEATURES — LightGBM")
-        print(f"{'='*62}")
+        print("\nTop features (LightGBM)")
         for feat, imp in lgb_m.top_features(12):
             print(f"  {feat:<35}: {imp:.1f}")
 
     if verbose and "logistic_full" in final_models:
         lr_m = final_models["logistic_full"]["model"]
-        print(f"\n{'='*62}")
-        print("TOP FEATURES — Logistic (coefficients)")
-        print(f"{'='*62}")
+        print("\nTop features (Logistic coefficients)")
         for feat, coef in lr_m.top_features(12):
             print(f"  {feat:<35}: {coef:+.4f}")
 

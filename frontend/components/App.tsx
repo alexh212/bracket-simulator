@@ -5,8 +5,13 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 const GREEN = "#22c55e";
 const ACCENT = "#000";
 const ACCENT_SOFT = "#fafafa";
-const PANEL_BORDER = "#e5e7eb";
-const PANEL_DIVIDER = "#f1f5f9";
+const BORDER_OUTER = "#ebeff5";
+const BORDER_INNER = "#f1f5f9";
+const BORDER_SUBTLE = "#e8e8e8";
+const BG_HEADER = "#fafafa";
+const BG_ALT = "#f8f8f8";
+const PAD_HEADER = "8px 10px";
+const PAD_BODY = "14px 16px";
 const ROUNDS = ["R32","S16","E8","F4","Final","Champ"] as const;
 const REGIONS = ["East","West","Midwest","South"] as const;
 const R64_ORDER: [number, number][] = [[1,16],[8,9],[5,12],[4,13],[6,11],[3,14],[7,10],[2,15]];
@@ -110,16 +115,16 @@ function GroupTitle({ label, hint }: { label: string; hint?: string }) {
 function Collapse({ label, children, defaultOpen=false }: { label:string; children:React.ReactNode; defaultOpen?:boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{border:"1px solid #ebeff5",marginTop:0,background:"#fff",borderRadius:12,overflow:"hidden"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,marginTop:0,background:"#fff",borderRadius:14,overflow:"hidden"}}>
       <button onClick={()=>setOpen(o=>!o)} style={{
-        width:"100%",padding:"10px 12px",background:open?"#fafafa":"#fff",
+        width:"100%",padding:"10px 12px",background:open?BG_HEADER:"#fff",
         border:"none",cursor:"pointer",display:"flex",alignItems:"center",
         justifyContent:"space-between",fontSize:11,fontWeight:600,letterSpacing:"0.02em"
       }}>
         <span>{label}</span>
         <span style={{fontSize:14,color:"#999",fontWeight:300}}>{open?"−":"+"}</span>
       </button>
-      {open && <div style={{borderTop:`1px solid ${PANEL_DIVIDER}`}}>{children}</div>}
+      {open && <div style={{borderTop:`1px solid ${BORDER_INNER}`}}>{children}</div>}
     </div>
   );
 }
@@ -201,7 +206,7 @@ function SimControls({ running, onRun, assumptionCount, lockedPickCount }: {
           disabled={running}
           style={{
             height:36,minWidth:180,padding:"0 20px",background:running?"#f0f0f0":"#111",
-            color:running?"#aaa":"#fff",border:"none",borderRadius:8,
+            color:running?"#aaa":"#fff",border:"none",borderRadius:14,
             fontSize:11,fontWeight:600,cursor:running?"not-allowed":"pointer",
             letterSpacing:"0.03em",whiteSpace:"nowrap"
           }}
@@ -243,14 +248,14 @@ function AssumptionsPanel({
   };
 
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
-      <div style={{padding:"8px 10px",borderBottom:"1px solid #e8e8e8",background:"#fafafa"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+      <div style={{padding:PAD_HEADER,borderBottom:`1px solid ${BORDER_SUBTLE}`,background:BG_HEADER}}>
         <div style={{fontSize:10,color:"#666"}}>Apply team strength deltas (Elo points) before simulation. Positive favors the team, negative fades it.</div>
       </div>
-      <div style={{padding:"10px 14px",display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:10,alignItems:"end",borderBottom:"1px solid #e8e8e8"}}>
+      <div style={{padding:"10px 14px",display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:10,alignItems:"end",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
         <div>
           <div style={{fontSize:9,color:"#888",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.08em"}}>Team</div>
-          <select value={team} onChange={(e)=>setTeam(e.target.value)} disabled={running} style={{width:"100%",height:32,border:`1px solid ${PANEL_BORDER}`,padding:"0 8px",fontSize:11,background:"#fff"}}>
+          <select value={team} onChange={(e)=>setTeam(e.target.value)} disabled={running} style={{width:"100%",height:32,border:`1px solid ${BORDER_OUTER}`,padding:"0 8px",fontSize:11,background:"#fff"}}>
             <option value="">Select team...</option>
             {teams.map((t)=><option key={t} value={t}>{t}</option>)}
           </select>
@@ -265,7 +270,7 @@ function AssumptionsPanel({
             style={{width:"100%",accentColor:"#000"}} />
         </div>
         <button onClick={addAssumption} disabled={running || !team}
-          style={{height:32,padding:"0 14px",border:`1px solid ${PANEL_BORDER}`,background:"#000",color:"#fff",fontSize:10,fontWeight:600,letterSpacing:"0.06em",cursor:running?"not-allowed":"pointer"}}>
+          style={{height:32,padding:"0 14px",border:`1px solid ${BORDER_OUTER}`,background:"#000",color:"#fff",fontSize:10,fontWeight:600,letterSpacing:"0.06em",cursor:running?"not-allowed":"pointer"}}>
           APPLY
         </button>
       </div>
@@ -273,7 +278,7 @@ function AssumptionsPanel({
         <div style={{display:"flex",flexWrap:"wrap",gap:6,flex:1}}>
           {!hasAssumptions && <span style={{fontSize:10,color:"#aaa"}}>No custom assumptions active.</span>}
           {entries.slice(0, 8).map(([name, val])=>(
-            <span key={name} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"3px 8px",border:`1px solid ${PANEL_BORDER}`,fontSize:10,background:"#fff"}}>
+            <span key={name} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"3px 8px",border:`1px solid ${BORDER_OUTER}`,fontSize:10,background:"#fff"}}>
               <span>{name}</span>
               <span style={{fontWeight:700}}>{val>0?"+":""}{val}</span>
               <button onClick={()=>removeAssumption(name)} disabled={running}
@@ -283,7 +288,7 @@ function AssumptionsPanel({
         </div>
         {hasAssumptions && (
           <button onClick={()=>onChange({})} disabled={running}
-            style={{height:28,padding:"0 10px",border:`1px solid ${PANEL_BORDER}`,background:"#fff",fontSize:10,cursor:"pointer"}}>
+            style={{height:28,padding:"0 10px",border:`1px solid ${BORDER_OUTER}`,background:"#fff",fontSize:10,cursor:"pointer"}}>
             CLEAR ALL
           </button>
         )}
@@ -336,15 +341,15 @@ function InitialPickTree({
       if (!pickable && !sim.complete) return null;
       if (!pickable && games.length === 0) return null;
       return (
-        <div style={{border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
-          <div style={{padding:"7px 10px",borderBottom:`1px solid ${PANEL_DIVIDER}`,fontSize:9,color:"#777",letterSpacing:"0.08em",textTransform:"uppercase"}}>{label}</div>
+        <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+          <div style={{padding:"7px 10px",borderBottom:`1px solid ${BORDER_INNER}`,fontSize:9,color:"#777",letterSpacing:"0.08em",textTransform:"uppercase"}}>{label}</div>
           <div style={{padding:8,display:"grid",gridTemplateColumns:pickable?"repeat(2,minmax(0,1fr))":"repeat(3,minmax(0,1fr))",gap:10}}>
             {(pickable ? r64 : games).map((g: any, idx: number) => {
               if (pickable) {
                 const key = g.key;
                 return (
-                  <div key={key} style={{border:`1px solid ${PANEL_BORDER}`,borderRadius:6,overflow:"hidden",background:"#fff"}}>
-                    <div style={{padding:"3px 8px",background:"#fafafa",borderBottom:`1px solid ${PANEL_BORDER}`,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:9,color:"#888"}}>
+                  <div key={key} style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,overflow:"hidden",background:"#fff"}}>
+                    <div style={{padding:"3px 8px",background:BG_HEADER,borderBottom:`1px solid ${BORDER_OUTER}`,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:9,color:"#888"}}>
                       <span style={{fontWeight:600,color:"#555"}}>({g.seedA})</span>
                       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{g.teamA}</span>
                       <span style={{color:"#ccc",fontWeight:700,fontSize:8}}>vs</span>
@@ -359,14 +364,14 @@ function InitialPickTree({
                           onClick={()=>onTogglePick(key, name)}
                           style={{
                             width:"100%",display:"flex",alignItems:"center",gap:6,padding:"5px 8px",
-                            border:"none",borderTop:ti===1?`1px solid ${PANEL_DIVIDER}`:"none",
+                            border:"none",borderTop:ti===1?`1px solid ${BORDER_INNER}`:"none",
                             background:locked?"#111":"#fff",
                             color:locked?"#fff":"#111",cursor:"pointer",textAlign:"left"
                           }}
                         >
                           <Seed n={seed}/>
                           <span style={{flex:1,fontSize:10,fontWeight:locked?700:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
-                          {locked && <span style={{fontSize:7,background:"#fff",color:"#111",padding:"1px 4px",borderRadius:3,fontWeight:700,letterSpacing:"0.04em"}}>LOCK</span>}
+                          {locked && <span style={{fontSize:7,background:"#fff",color:"#111",padding:"1px 4px",borderRadius:14,fontWeight:700,letterSpacing:"0.04em"}}>LOCK</span>}
                           {locked && <span style={{fontSize:11,color:locked?"#22c55e":"#fff",lineHeight:1}}>✓</span>}
                         </button>
                       );
@@ -377,8 +382,8 @@ function InitialPickTree({
               const pA = g?.win_prob_a ?? 50;
               const pB = 100 - pA;
               return (
-                <div key={`${label}-${idx}`} style={{border:`1px solid ${PANEL_BORDER}`,borderRadius:6,overflow:"hidden",background:"#fff"}}>
-                  <div style={{padding:"3px 8px",background:"#fafafa",borderBottom:`1px solid ${PANEL_BORDER}`,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:9,color:"#888"}}>
+                <div key={`${label}-${idx}`} style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,overflow:"hidden",background:"#fff"}}>
+                  <div style={{padding:"3px 8px",background:BG_HEADER,borderBottom:`1px solid ${BORDER_OUTER}`,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:9,color:"#888"}}>
                     <span style={{fontWeight:600,color:"#555"}}>({g?.seed_a})</span>
                     <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{g?.team_a}</span>
                     <span style={{color:"#ccc",fontWeight:700,fontSize:8}}>vs</span>
@@ -388,7 +393,7 @@ function InitialPickTree({
                   {[{name:g?.team_a,seed:g?.seed_a,p:pA},{name:g?.team_b,seed:g?.seed_b,p:pB}].map((t: any, ti: number) => {
                     const won = g?.winner === t.name;
                     return (
-                      <div key={t.name} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderTop:ti===1?`1px solid ${PANEL_DIVIDER}`:"none",background:won?"#f8f8f8":"#fff"}}>
+                      <div key={t.name} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderTop:ti===1?`1px solid ${BORDER_INNER}`:"none",background:won?BG_ALT:"#fff"}}>
                         <Seed n={t.seed || 0}/>
                         <span style={{flex:1,fontSize:10,fontWeight:won?700:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
                         <span style={{fontSize:9,color:won?"#111":"#999",fontWeight:won?600:400}}>{pct(t.p,1)}</span>
@@ -406,7 +411,7 @@ function InitialPickTree({
 
     return (
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        <div style={{padding:"6px 10px",fontSize:10,fontWeight:600,letterSpacing:"0.08em",color:"#333",border:`1px solid ${PANEL_BORDER}`,background:"#fafafa"}}>
+        <div style={{padding:"6px 10px",fontSize:10,fontWeight:600,letterSpacing:"0.08em",color:"#333",border:`1px solid ${BORDER_OUTER}`,background:BG_HEADER}}>
           {region.toUpperCase()} REGION
         </div>
         <RoundMatchups round={0} label="Round of 64 — Pick Winners" pickable={true}/>
@@ -418,17 +423,73 @@ function InitialPickTree({
   };
 
   const count = Object.keys(forcedPicks).length;
-  const f4Candidates = top(sim.final_four_pct, 4).map(([name]) => name);
-  const titleCandidates = top(sim.champion_pct, 2).map(([name]) => name);
+
+  // Derive F4 and Title matchups from predicted bracket (East vs Midwest = SF1, West vs South = SF2)
+  const getRegionChamp = (region: string): Game | null => {
+    const rounds = sim.predicted_bracket[region];
+    if (!rounds?.[3]?.[0]) return null;
+    return rounds[3][0] as Game;
+  };
+  const matchupProb = (a: string, b: string): number => {
+    const mp = sim.matchup_probs || {};
+    const key1 = `${a} vs ${b}`;
+    const key2 = `${b} vs ${a}`;
+    if (mp[key1] != null) return mp[key1];
+    if (mp[key2] != null) return 100 - mp[key2];
+    return 50;
+  };
+  const sf1 = getRegionChamp("East") && getRegionChamp("Midwest")
+    ? { team_a: getRegionChamp("East")!.winner, team_b: getRegionChamp("Midwest")!.winner, seed_a: teamsCatalog[getRegionChamp("East")!.winner]?.seed ?? 0, seed_b: teamsCatalog[getRegionChamp("Midwest")!.winner]?.seed ?? 0 }
+    : null;
+  const sf2 = getRegionChamp("West") && getRegionChamp("South")
+    ? { team_a: getRegionChamp("West")!.winner, team_b: getRegionChamp("South")!.winner, seed_a: teamsCatalog[getRegionChamp("West")!.winner]?.seed ?? 0, seed_b: teamsCatalog[getRegionChamp("South")!.winner]?.seed ?? 0 }
+    : null;
+  const sf1Prob = sf1 ? matchupProb(sf1.team_a, sf1.team_b) : 50;
+  const sf2Prob = sf2 ? matchupProb(sf2.team_a, sf2.team_b) : 50;
+  const sf1Winner = sf1 ? (sf1Prob >= 50 ? sf1.team_a : sf1.team_b) : null;
+  const sf2Winner = sf2 ? (sf2Prob >= 50 ? sf2.team_a : sf2.team_b) : null;
+  const titleGame = sf1Winner && sf2Winner
+    ? { team_a: sf1Winner, team_b: sf2Winner, seed_a: teamsCatalog[sf1Winner]?.seed ?? 0, seed_b: teamsCatalog[sf2Winner]?.seed ?? 0 }
+    : null;
+  const titleProb = titleGame ? matchupProb(titleGame.team_a, titleGame.team_b) : 50;
+  const titleWinner = titleGame ? (titleProb >= 50 ? titleGame.team_a : titleGame.team_b) : null;
+
+  const renderGameCard = (g: { team_a: string; team_b: string; seed_a: number; seed_b: number } | null, pA: number, winner: string | null) => {
+    if (!g) return <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,background:BG_HEADER,minHeight:70}}/>;
+    const pB = 100 - pA;
+    const aWon = winner === g.team_a;
+    return (
+      <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,overflow:"hidden",background:"#fff"}}>
+        <div style={{padding:"3px 8px",background:BG_HEADER,borderBottom:`1px solid ${BORDER_OUTER}`,display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:9,color:"#888"}}>
+          <span style={{fontWeight:600,color:"#555"}}>({g.seed_a})</span>
+          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{g.team_a}</span>
+          <span style={{color:"#ccc",fontWeight:700,fontSize:8}}>vs</span>
+          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{g.team_b}</span>
+          <span style={{fontWeight:600,color:"#555"}}>({g.seed_b})</span>
+        </div>
+        {[{name:g.team_a,seed:g.seed_a,p:pA},{name:g.team_b,seed:g.seed_b,p:pB}].map((t: any, ti: number) => {
+          const won = winner === t.name;
+          return (
+            <div key={t.name} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderTop:ti===1?`1px solid ${BORDER_INNER}`:"none",background:won?BG_ALT:"#fff"}}>
+              <Seed n={t.seed || 0}/>
+              <span style={{flex:1,fontSize:10,fontWeight:won?700:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
+              <span style={{fontSize:9,color:won?"#111":"#999",fontWeight:won?600:400}}>{pct(t.p,1)}</span>
+              {won && <span style={{fontSize:11,color:GREEN,lineHeight:1}}>✓</span>}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
-      <div style={{padding:"8px 10px",borderBottom:"1px solid #e8e8e8",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fafafa"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+      <div style={{padding:PAD_HEADER,borderBottom:`1px solid ${BORDER_SUBTLE}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG_HEADER}}>
         <span style={{fontSize:10,color:"#444",letterSpacing:"0.06em"}}>Lock first-round picks, then run the sim.</span>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:10,color:"#666"}}>{count} locked</span>
           {count > 0 && (
-            <button onClick={onClearPicks} style={{fontSize:9,padding:"3px 8px",border:`1px solid ${PANEL_BORDER}`,background:"#fff",cursor:"pointer"}}>
+            <button onClick={onClearPicks} style={{fontSize:9,padding:"3px 8px",border:`1px solid ${BORDER_OUTER}`,background:"#fff",cursor:"pointer"}}>
               clear all
             </button>
           )}
@@ -441,7 +502,7 @@ function InitialPickTree({
             onClick={() => setActiveRegion(r)}
             style={{
               padding:"4px 10px",
-              border:`1px solid ${PANEL_BORDER}`,
+              border:`1px solid ${BORDER_OUTER}`,
               background:activeRegion===r?"#000":"#fff",
               color:activeRegion===r?"#fff":"#111",
               fontSize:10,
@@ -457,22 +518,19 @@ function InitialPickTree({
       <div style={{padding:10}}>
         <RegionPanel region={activeRegion}/>
       </div>
-      <div style={{borderTop:"1px solid #eee",padding:"10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div style={{border:"1px solid #e8e8e8",padding:"8px 10px"}}>
-          <div style={{fontSize:8,color:"#888",letterSpacing:"0.08em",marginBottom:6}}>FINAL FOUR OUTLOOK</div>
-          {Array.from({length:4}).map((_, i) => {
-            const name = f4Candidates[i];
-            return name ? <div key={i} style={{border:"1px solid #d9d9d9",background:"#fff",color:"#111",padding:"6px 8px",fontSize:10,fontWeight:600,marginBottom:6}}>{name}</div>
-            : <div key={i} style={{height:26,borderLeft:"1px solid #ddd",borderBottom:"1px solid #ddd",marginBottom:6}}/>;
-          })}
+      <div style={{borderTop:`1px solid ${BORDER_SUBTLE}`,padding:"10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+          <div style={{padding:"7px 10px",borderBottom:`1px solid ${BORDER_INNER}`,fontSize:9,color:"#777",letterSpacing:"0.08em",textTransform:"uppercase"}}>Final Four Outlook</div>
+          <div style={{padding:8,display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>
+            <div key="sf1">{renderGameCard(sf1, sf1Prob, sf1Winner)}</div>
+            <div key="sf2">{renderGameCard(sf2, sf2Prob, sf2Winner)}</div>
+          </div>
         </div>
-        <div style={{border:"1px solid #e8e8e8",padding:"8px 10px"}}>
-          <div style={{fontSize:8,color:"#888",letterSpacing:"0.08em",marginBottom:6}}>TITLE GAME OUTLOOK</div>
-          {Array.from({length:2}).map((_, i) => {
-            const name = titleCandidates[i];
-            return name ? <div key={`t-${i}`} style={{border:"1px solid #d9d9d9",background:"#fff",color:"#111",padding:"6px 8px",fontSize:10,fontWeight:600,marginBottom:6}}>{name}</div>
-            : <div key={`t-${i}`} style={{height:26,borderLeft:"1px solid #ddd",borderBottom:"1px solid #ddd",marginBottom:6}}/>;
-          })}
+        <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+          <div style={{padding:"7px 10px",borderBottom:`1px solid ${BORDER_INNER}`,fontSize:9,color:"#777",letterSpacing:"0.08em",textTransform:"uppercase"}}>Title Game Outlook</div>
+          <div style={{padding:8,display:"grid",gridTemplateColumns:"1fr",gap:10}}>
+            <div key="title">{renderGameCard(titleGame, titleProb, titleWinner)}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -490,10 +548,10 @@ function LiveSimPanel({ sim, logLines }: { sim: SimState; logLines: string[] }) 
 
   return (
     <div style={{background:"#fff"}}>
-      <div style={{background:"#fafafa",padding:"8px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid #e8e8e8"}}>
+      <div style={{background:BG_HEADER,padding:PAD_HEADER,display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:10,fontWeight:600,letterSpacing:"0.1em",color:"#444"}}>RUN STATUS</span>
-          {sim.done>0&&!sim.complete&&<span style={{width:6,height:6,borderRadius:"50%",background:GREEN,display:"inline-block",animation:"blink 1s step-end infinite"}}/>}
+          {sim.done>0&&!sim.complete&&<span style={{width:6,height:6,borderRadius:14,background:GREEN,display:"inline-block",animation:"blink 1s step-end infinite"}}/>}
           {sim.complete&&<span style={{fontSize:9,color:GREEN,letterSpacing:"0.06em"}}>COMPLETE</span>}
         </div>
         <div style={{fontSize:9,color:"#666",display:"flex",gap:12}}>
@@ -505,15 +563,15 @@ function LiveSimPanel({ sim, logLines }: { sim: SimState; logLines: string[] }) 
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
         {/* Left: progress + live leaderboard */}
-        <div style={{borderRight:"1px solid #e8e8e8",padding:"14px 16px"}}>
+        <div style={{borderRight:`1px solid ${BORDER_SUBTLE}`,padding:PAD_BODY}}>
           {/* Progress bar */}
           <div style={{marginBottom:14}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#888",marginBottom:5}}>
               <span>{sim.done.toLocaleString()} / {sim.total.toLocaleString()} simulations</span>
               <span style={{fontWeight:600,color:sim.complete?GREEN:"#000"}}>{(progress*100).toFixed(0)}%</span>
             </div>
-            <div style={{height:4,background:"#f0f0f0",borderRadius:2,overflow:"hidden"}}>
-              <div className={!sim.complete && sim.done > 0 ? "progress-bar-running" : ""} style={{height:"100%",width:`${progress*100}%`,background:sim.complete?GREEN:ACCENT,transition:"width 0.4s ease",borderRadius:2}}/>
+            <div style={{height:4,background:"#f0f0f0",borderRadius:14,overflow:"hidden"}}>
+              <div className={!sim.complete && sim.done > 0 ? "progress-bar-running" : ""} style={{height:"100%",width:`${progress*100}%`,background:sim.complete?GREEN:ACCENT,transition:"width 0.4s ease",borderRadius:14}}/>
             </div>
           </div>
 
@@ -534,13 +592,13 @@ function LiveSimPanel({ sim, logLines }: { sim: SimState; logLines: string[] }) 
                       <span style={{fontWeight:i===0?700:400}}>{pct(p)}</span>
                     </div>
                   </div>
-                  <div style={{height:3,background:"#f0f0f0",borderRadius:2,overflow:"hidden"}}>
-                    <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/maxPct)*100}%`,height:"100%",background:i===0?ACCENT:"#ccc",transition:"width 0.5s ease",borderRadius:2}}/>
+                  <div style={{height:3,background:"#f0f0f0",borderRadius:14,overflow:"hidden"}}>
+                    <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/maxPct)*100}%`,height:"100%",background:i===0?ACCENT:"#ccc",transition:"width 0.5s ease",borderRadius:14}}/>
                   </div>
                 </div>
               ))}
               {sim.complete&&top(sim.champion_pct,1)[0]&&(
-                <div style={{marginTop:6,fontSize:10,color:"#666",borderTop:"1px solid #f0f0f0",paddingTop:8}}>
+                <div style={{marginTop:6,fontSize:10,color:"#666",borderTop:`1px solid ${BORDER_SUBTLE}`,paddingTop:8}}>
                   Implied odds: {top(sim.champion_pct,1)[0][0]} at {toML(top(sim.champion_pct,1)[0][1]/100)}
                 </div>
               )}
@@ -549,7 +607,7 @@ function LiveSimPanel({ sim, logLines }: { sim: SimState; logLines: string[] }) 
         </div>
 
         {/* Right: console log */}
-        <div ref={logRef} className="terminal-log" style={{height:220,overflowY:"auto",background:"#0d0d0d",padding:"10px 14px",fontSize:10,lineHeight:1.9,color:"#555",borderLeft:"1px solid #e8e8e8",scrollbarWidth:"none"} as React.CSSProperties}>
+        <div ref={logRef} className="terminal-log" style={{height:220,overflowY:"auto",background:"#0d0d0d",padding:"10px 14px",fontSize:10,lineHeight:1.9,color:"#555",borderLeft:`1px solid ${BORDER_SUBTLE}`,scrollbarWidth:"none"} as React.CSSProperties}>
           {logLines.map((line,i)=>{
             const isRecent = i>=logLines.length-3;
             const isChamp = line.includes("champion")||line.includes("CHAMPION")||line.includes("complete");
@@ -611,7 +669,7 @@ function AdvancementTable({ sim }: { sim: SimState }) {
   };
 
   return (
-    <div style={{overflowX:"auto",border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
+    <div style={{overflowX:"auto",border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
         <thead>
           <tr style={{borderBottom:"2px solid #000",background:"#000"}}>
@@ -629,7 +687,7 @@ function AdvancementTable({ sim }: { sim: SimState }) {
         <tbody>
           {rows.map((t,i)=>{
             return (
-              <tr key={t.name} style={{borderBottom:"1px solid #f4f4f4",background:i%2===0?"#fff":"#fafafa"}}>
+              <tr key={t.name} style={{borderBottom:`1px solid ${BORDER_SUBTLE}`,background:i%2===0?"#fff":BG_HEADER}}>
                 <td style={{padding:"6px 8px",textAlign:"center",fontSize:10,fontWeight:600,color:"#666"}}>{i+1}</td>
                 <td style={{padding:"6px 8px",textAlign:"center"}}><Seed n={t.seed}/></td>
                 <td style={{padding:"6px 10px",whiteSpace:"nowrap"}}>
@@ -676,14 +734,14 @@ const GameCard = memo(function GameCard({
 }) {
   if (!isResolved || !g) {
     return (
-      <div style={{border:`1px solid ${PANEL_BORDER}`,borderRadius:6,background:"#fafafa",marginBottom:6,overflow:"hidden"}}>
-        <div style={{padding:"5px 10px",minHeight:22,display:"flex",alignItems:"center",gap:6,borderBottom:"1px solid #f0f0f0"}}>
-          <div style={{width:20,height:20,borderRadius:4,border:"1px solid #e0e0e0",background:"#eee",flexShrink:0}}/>
-          <div style={{height:8,background:"#efefef",flex:1,borderRadius:3}}/>
+      <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,background:BG_HEADER,marginBottom:6,overflow:"hidden"}}>
+        <div style={{padding:"5px 10px",minHeight:22,display:"flex",alignItems:"center",gap:6,borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
+          <div style={{width:20,height:20,borderRadius:14,border:"1px solid #e0e0e0",background:BG_ALT,flexShrink:0}}/>
+          <div style={{height:8,background:BG_ALT,flex:1,borderRadius:14}}/>
         </div>
         <div style={{padding:"5px 10px",minHeight:22,display:"flex",alignItems:"center",gap:6}}>
-          <div style={{width:20,height:20,borderRadius:4,border:"1px solid #e0e0e0",background:"#eee",flexShrink:0}}/>
-          <div style={{height:8,background:"#efefef",width:"60%",borderRadius:3}}/>
+          <div style={{width:20,height:20,borderRadius:14,border:"1px solid #e0e0e0",background:BG_ALT,flexShrink:0}}/>
+          <div style={{height:8,background:BG_ALT,width:"60%",borderRadius:14}}/>
         </div>
       </div>
     );
@@ -699,7 +757,7 @@ const GameCard = memo(function GameCard({
     <span style={{
       width:20,height:20,fontSize:10,fontWeight:700,flexShrink:0,
       display:"inline-flex",alignItems:"center",justifyContent:"center",
-      borderRadius:4,background:seed<=4?"#111":"#e8e8e8",color:seed<=4?"#fff":"#444",
+      borderRadius:14,background:seed<=4?"#111":BORDER_SUBTLE,color:seed<=4?"#fff":"#444",
     }}>{seed}</span>
   );
 
@@ -708,7 +766,7 @@ const GameCard = memo(function GameCard({
       onClick={()=>onTogglePick(key, team)}
       style={{
         display:"flex",alignItems:"center",gap:8,padding:"6px 10px",border:"none",width:"100%",textAlign:"left",
-        background:won?"#f8f8f8":"#fff",minHeight:26,cursor:"pointer",
+        background:won?BG_ALT:"#fff",minHeight:26,cursor:"pointer",
         borderLeft:won?`3px solid ${ACCENT}`:"3px solid transparent",
       }}
       title={isForced ? "Click to clear pick" : "Click to force this winner"}
@@ -718,7 +776,7 @@ const GameCard = memo(function GameCard({
       <span style={{fontSize:10,fontWeight:won?600:400,color:won?"#111":"#aaa",minWidth:38,textAlign:"right"}}>{pct(p,1)}</span>
       {score!=null&&<span style={{fontSize:9,fontWeight:won?700:400,color:won?"#000":"#ccc",minWidth:18,textAlign:"right"}}>{score}</span>}
       {isForced
-        ? <span style={{fontSize:7,color:"#fff",background:"#111",padding:"1px 4px",borderRadius:3,fontWeight:700,letterSpacing:"0.04em"}}>LOCK</span>
+        ? <span style={{fontSize:7,color:"#fff",background:"#111",padding:"1px 4px",borderRadius:14,fontWeight:700,letterSpacing:"0.04em"}}>LOCK</span>
         : won
           ? <span style={{fontSize:12,color:"#22c55e",marginLeft:2,lineHeight:1}}>✓</span>
           : <span style={{width:14}}/>
@@ -727,10 +785,10 @@ const GameCard = memo(function GameCard({
   );
 
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,borderRadius:6,background:"#fff",marginBottom:6,overflow:"hidden",animation:"fadeIn 0.3s ease"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,background:"#fff",marginBottom:6,overflow:"hidden",animation:"fadeIn 0.3s ease"}}>
       <div style={{
         display:"flex",alignItems:"center",justifyContent:"center",gap:6,
-        padding:"3px 8px",background:"#fafafa",borderBottom:`1px solid ${PANEL_BORDER}`,
+        padding:"3px 8px",background:BG_HEADER,borderBottom:`1px solid ${BORDER_OUTER}`,
         fontSize:9,color:"#888",letterSpacing:"0.02em",
       }}>
         <span style={{fontWeight:600,color:"#555"}}>({g.seed_a})</span>
@@ -741,13 +799,13 @@ const GameCard = memo(function GameCard({
       </div>
       <TeamRow team={g.team_a} seed={g.seed_a} score={g.score_a} won={aWon} p={pA} isForced={forced===g.team_a}/>
       <div style={{display:"flex",alignItems:"center",gap:8,padding:"0 10px",background:"#fff"}}>
-        <div style={{flex:1,height:1,background:"#e8e8e8"}}/>
+        <div style={{flex:1,height:1,background:BORDER_SUBTLE}}/>
         <span style={{fontSize:8,color:"#ccc",fontWeight:600}}>VS</span>
-        <div style={{flex:1,height:1,background:"#e8e8e8"}}/>
+        <div style={{flex:1,height:1,background:BORDER_SUBTLE}}/>
       </div>
       <TeamRow team={g.team_b} seed={g.seed_b} score={g.score_b} won={!aWon} p={pB} isForced={forced===g.team_b}/>
-      <div style={{height:3,background:"#f0f0f0",borderRadius:"0 0 5px 5px"}}>
-        <div style={{width:`${pA}%`,height:"100%",background:aWon?"#111":"#888",borderRadius:"0 0 0 5px"}}/>
+      <div style={{height:3,background:"#f0f0f0",borderRadius:"0 0 14px 14px"}}>
+        <div style={{width:`${pA}%`,height:"100%",background:aWon?"#111":"#888",borderRadius:"0 0 0 14px"}}/>
       </div>
     </div>
   );
@@ -760,7 +818,7 @@ const RegionColumn = memo(function RegionColumn({ region, sim, resolved, forcedP
   const rounds = sim.predicted_bracket[region] || [];
 
   return (
-    <div style={{flex:1,borderRight:"1px solid #e8e8e8"}}>
+    <div style={{flex:1,borderRight:`1px solid ${BORDER_SUBTLE}`}}>
       <div style={{background:"#000",padding:"5px 8px"}}>
         <span style={{fontSize:9,fontWeight:600,letterSpacing:"0.1em",color:"#fff"}}>{region.toUpperCase()}</span>
       </div>
@@ -768,7 +826,7 @@ const RegionColumn = memo(function RegionColumn({ region, sim, resolved, forcedP
         const count = ri===0?8:ri===1?4:ri===2?2:1;
         return (
           <div key={ri}>
-            <div style={{padding:"2px 8px",background:"#f4f4f4",borderBottom:"1px solid #e8e8e8",borderTop:ri>0?"1px solid #ddd":"none"}}>
+            <div style={{padding:"2px 8px",background:BG_ALT,borderBottom:`1px solid ${BORDER_SUBTLE}`,borderTop:ri>0?`1px solid ${BORDER_SUBTLE}`:"none"}}>
               <span style={{fontSize:8,letterSpacing:"0.1em",fontWeight:700,color:"#888"}}>{ROUND_LABELS[ri]}</span>
             </div>
             {Array.from({length:count}).map((_,gi)=>{
@@ -810,13 +868,13 @@ function BracketGrid({
   if (!sim.bracketStarted) return null;
   const pickCount = Object.keys(forcedPicks).length;
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,overflowX:"auto",background:"#fff"}}>
-      <div style={{padding:"6px 10px",background:"#f8f8f8",borderBottom:"1px solid #e8e8e8",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,overflowX:"auto",background:"#fff"}}>
+      <div style={{padding:"6px 10px",background:BG_ALT,borderBottom:`1px solid ${BORDER_SUBTLE}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
         <span style={{fontSize:9,color:"#666",letterSpacing:"0.06em"}}>Click any team to lock a winner. Locked picks are used next simulation run while all other games are simulated.</span>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:9,color:"#444"}}>{pickCount} picks locked</span>
           {pickCount > 0 && (
-            <button onClick={onClearPicks} style={{fontSize:9,padding:"3px 8px",border:`1px solid ${PANEL_BORDER}`,background:"#fff",cursor:"pointer"}}>
+            <button onClick={onClearPicks} style={{fontSize:9,padding:"3px 8px",border:`1px solid ${BORDER_OUTER}`,background:"#fff",cursor:"pointer"}}>
               clear
             </button>
           )}
@@ -835,7 +893,7 @@ function BracketGrid({
         ))}
       </div>
       {sim.complete && (
-        <div style={{borderTop:`1px solid ${PANEL_DIVIDER}`,display:"grid",gridTemplateColumns:"1fr 1fr 1fr"}}>
+        <div style={{borderTop:`1px solid ${BORDER_INNER}`,display:"grid",gridTemplateColumns:"1fr 1fr 1fr"}}>
           {[
             {label:"FINAL FOUR · SF1", teams:top(sim.final_four_pct,4).slice(0,2)},
             {label:"FINAL FOUR · SF2", teams:top(sim.final_four_pct,4).slice(2,4)},
@@ -844,7 +902,7 @@ function BracketGrid({
             <div key={label} style={{padding:"10px 12px",borderRight:i<2?"1px solid #000":"none"}}>
               <div style={{fontSize:8,letterSpacing:"0.1em",fontWeight:700,color:"#888",marginBottom:6}}>{label}</div>
               {teams.map(([team,p],j)=>(
-                <div key={team} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #f4f4f4"}}>
+                <div key={team} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
                   <span style={{fontSize:11,fontWeight:j===0?700:400}}>{team}</span>
                   <span style={{fontSize:10,color:"#666"}}>{pct(p)}</span>
                 </div>
@@ -868,8 +926,8 @@ function ChampionshipChart({ sim }: { sim: SimState }) {
         {data.map(([team,p],i)=>(
           <div key={team} style={{display:"grid",gridTemplateColumns:"140px 1fr 54px",alignItems:"center",gap:10}}>
             <div style={{fontSize:11,fontWeight:i<4?600:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team}</div>
-            <div style={{height:6,background:"#f0f0f0",borderRadius:3,overflow:"hidden"}}>
-              <div style={{width:`${(p/max)*100}%`,height:"100%",background:i===0?"#000":i<4?"#333":"#bbb",borderRadius:3,transition:"width 0.5s"}}/>
+            <div style={{height:6,background:"#f0f0f0",borderRadius:14,overflow:"hidden"}}>
+              <div style={{width:`${(p/max)*100}%`,height:"100%",background:i===0?"#000":i<4?"#333":"#bbb",borderRadius:14,transition:"width 0.5s"}}/>
             </div>
             <div style={{fontSize:11,fontWeight:i===0?700:400,textAlign:"right"}}>{pct(p)}</div>
           </div>
@@ -936,8 +994,8 @@ function UpsetChart({ sim }: { sim: SimState }) {
               <span style={{fontWeight:600}}>({u.dog_seed}) {u.underdog}</span>
               <span style={{color:"#aaa",fontSize:9}}> over ({u.fav_seed}) {u.favorite}</span>
             </div>
-            <div style={{height:6,background:"#f0f0f0",borderRadius:3,overflow:"hidden"}}>
-              <div style={{width:`${(u.upset_prob/max)*100}%`,height:"100%",background:u.upset_prob>40?"#000":u.upset_prob>32?"#555":"#999",borderRadius:3}}/>
+            <div style={{height:6,background:"#f0f0f0",borderRadius:14,overflow:"hidden"}}>
+              <div style={{width:`${(u.upset_prob/max)*100}%`,height:"100%",background:u.upset_prob>40?"#000":u.upset_prob>32?"#555":"#999",borderRadius:14}}/>
             </div>
             <div style={{fontSize:11,fontWeight:600,textAlign:"right"}}>{pct(u.upset_prob,0)}</div>
           </div>
@@ -979,12 +1037,12 @@ function DiagnosticsSection({ sim, overrides }: { sim: SimState; overrides: Team
   const statusBg = (ok: boolean) => (ok ? "#dcfce7" : "#fee2e2");
 
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
-      <div style={{padding:"10px 14px",borderBottom:`1px solid ${PANEL_DIVIDER}`,background:"#fafafa"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+      <div style={{padding:"10px 14px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER}}>
         <div style={{fontSize:10,color:"#666"}}>Quick confidence checks on probability accounting and bracket volatility.</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1.2fr 1fr"}}>
-        <div style={{padding:"12px 14px",borderRight:`1px solid ${PANEL_DIVIDER}`}}>
+        <div style={{padding:"12px 14px",borderRight:`1px solid ${BORDER_INNER}`}}>
           {checks.map((c) => {
             const delta = c.actual - c.target;
             const ok = Math.abs(delta) <= c.tol;
@@ -993,7 +1051,7 @@ function DiagnosticsSection({ sim, overrides }: { sim: SimState; overrides: Team
                 <div style={{fontSize:11,color:"#444"}}>{c.label}</div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:10,color:"#888"}}>{c.actual.toFixed(1)}% vs {c.target}%</span>
-                  <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:10,color:statusColor(ok),background:statusBg(ok)}}>
+                  <span style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:14,color:statusColor(ok),background:statusBg(ok)}}>
                     {ok ? "OK" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)}pp`}
                   </span>
                 </div>
@@ -1012,7 +1070,7 @@ function DiagnosticsSection({ sim, overrides }: { sim: SimState; overrides: Team
             {label:"Assumptions active", value:String(assumptionCount)},
             {label:"Simulation sample", value:sim.n_sims.toLocaleString()},
           ].map((m) => (
-            <div key={m.label} style={{border:"1px solid #eee",padding:"8px 10px"}}>
+            <div key={m.label} style={{border:`1px solid ${BORDER_SUBTLE}`,padding:"8px 10px"}}>
               <div style={{fontSize:9,letterSpacing:"0.06em",textTransform:"uppercase",color:"#888",marginBottom:4}}>{m.label}</div>
               <div style={{fontSize:16,fontWeight:600,lineHeight:1.1}}>{m.value}</div>
             </div>
@@ -1105,18 +1163,18 @@ function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: string[] })
   const likelyOutcome = [...pathBuckets].sort((a, b) => b.p - a.p)[0];
 
   return (
-    <div style={{border:`1px solid ${PANEL_DIVIDER}`,background:"#fff"}}>
-      <div style={{padding:"10px 14px",borderBottom:`1px solid ${PANEL_DIVIDER}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+    <div style={{background:"#fff"}}>
+      <div style={{padding:PAD_HEADER,borderBottom:`1px solid ${BORDER_SUBTLE}`,background:BG_HEADER,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <span style={{fontSize:10,color:"#666"}}>Round-by-round odds</span>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
           <span style={{fontSize:10,color:"#888"}}>Team</span>
-          <select value={team} onChange={(e)=>setTeam(e.target.value)} style={{height:30,padding:"0 10px",border:`1px solid ${PANEL_DIVIDER}`,fontSize:11,background:"#fff",minWidth:180}}>
+          <select value={team} onChange={(e)=>setTeam(e.target.value)} style={{height:30,padding:"0 10px",border:`1px solid ${BORDER_SUBTLE}`,fontSize:11,background:"#fff",minWidth:180}}>
             {teams.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
       </div>
       {!sim.complete ? (
-        <div style={{padding:"10px 14px",fontSize:10,color:"#888",borderBottom:`1px solid ${PANEL_DIVIDER}`}}>
+        <div style={{padding:PAD_BODY,fontSize:10,color:"#888"}}>
           Pick a team and run a simulation to see probabilities.
         </div>
       ) : (
@@ -1124,7 +1182,7 @@ function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: string[] })
       <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
           <thead>
-            <tr style={{borderBottom:`1px solid ${PANEL_DIVIDER}`,background:"#fcfcfc"}}>
+            <tr style={{borderBottom:`1px solid ${BORDER_SUBTLE}`,background:BG_HEADER}}>
               <th style={{padding:"8px 10px",textAlign:"left",fontSize:9,color:"#777",letterSpacing:"0.06em"}}>OUTCOME</th>
               <th style={{padding:"8px 10px",textAlign:"right",fontSize:9,color:"#777",letterSpacing:"0.06em"}}>CHANCE</th>
               <th style={{padding:"8px 10px",textAlign:"right",fontSize:9,color:"#777",letterSpacing:"0.06em"}}>EXPECTED HITS</th>
@@ -1137,7 +1195,7 @@ function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: string[] })
               const m = explain(r.value);
               const fairOdds = m.p <= 0 || m.p >= 1 ? "N/A" : toML(m.p);
               return (
-                <tr key={r.label} style={{borderBottom:`1px solid ${PANEL_DIVIDER}`,background:idx % 2 === 0 ? "#fff" : "#fcfcfc"}}>
+                <tr key={r.label} style={{borderBottom:`1px solid ${BORDER_SUBTLE}`,background:idx % 2 === 0 ? "#fff" : BG_HEADER}}>
                   <td style={{padding:"8px 10px",fontWeight:500}}>{r.label}</td>
                   <td style={{padding:"8px 10px",textAlign:"right",fontWeight:600}}>{pct(r.value, 2)}</td>
                   <td style={{padding:"8px 10px",textAlign:"right",color:"#555"}}>{m.expectedHits.toFixed(0)} / {n.toLocaleString()}</td>
@@ -1149,7 +1207,7 @@ function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: string[] })
           </tbody>
         </table>
       </div>
-      <div style={{padding:"10px 14px",borderTop:`1px solid ${PANEL_DIVIDER}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",background:"#fcfcfc"}}>
+      <div style={{padding:PAD_BODY,borderTop:`1px solid ${BORDER_SUBTLE}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap",background:BG_HEADER}}>
         <div style={{fontSize:10,color:"#888",letterSpacing:"0.06em",textTransform:"uppercase"}}>Most likely finish</div>
         <div style={{fontSize:12,fontWeight:600}}>
           {likelyOutcome?.label || "N/A"} <span style={{fontSize:10,color:"#666",fontWeight:500}}>({pct((likelyOutcome?.p || 0) * 100, 2)})</span>
@@ -1185,23 +1243,23 @@ function ModelTrainingOutput() {
   };
 
   return (
-    <div style={{marginTop:12,border:`1px solid ${PANEL_DIVIDER}`,borderRadius:8,background:"#fafafa",overflow:"hidden"}}>
+    <div style={{marginTop:12,border:`1px solid ${BORDER_INNER}`,borderRadius:14,background:BG_HEADER,overflow:"hidden"}}>
       <div style={{padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
         <span style={{fontSize:11,fontWeight:600,color:"#475569"}}>Training log</span>
         {!fetched && !loading && (
-          <button onClick={load} style={{padding:"4px 12px",background:"#0f172a",color:"#fff",border:"none",fontSize:10,fontWeight:600,cursor:"pointer",borderRadius:6}}>Load</button>
+          <button onClick={load} style={{padding:"4px 12px",background:"#0f172a",color:"#fff",border:"none",fontSize:10,fontWeight:600,cursor:"pointer",borderRadius:14}}>Load</button>
         )}
       </div>
       {loading&&<div style={{padding:"14px",fontSize:11,color:"#aaa"}}>Running model pipeline (~14s)...</div>}
       {log&&(
         <>
-          <div style={{height,overflowY:"auto",overflowX:"auto",background:"#1a1a1a",padding:"12px 16px",fontSize:11,lineHeight:1.8,whiteSpace:"pre"}}>
+          <div style={{height,overflowY:"auto",overflowX:"auto",background:"#1a1a1a",padding:"12px 16px",fontSize:11,lineHeight:1.8,whiteSpace:"pre",fontFamily:"ui-monospace,monospace"}}>
             {log.split("\n").map((line,i)=>(
-              <div key={i} style={{color:line.startsWith("===")?"#fff":line.trim().startsWith("✓")?"#86efac":/\d+\.\d{4}/.test(line)?"#d1d5db":"#9ca3af",fontWeight:line.startsWith("===")?600:400,borderTop:line.startsWith("===")?"1px solid #333":"none",paddingTop:line.startsWith("===")?8:0,marginTop:line.startsWith("===")?4:0}}>{line||" "}</div>
+              <div key={i} style={{color:line.trim().startsWith("✓")?"#86efac":line.trim().startsWith("✗")?"#f87171":/\d+\.\d{4}/.test(line)?"#94a3b8":"#a1a1aa"}}>{line||" "}</div>
             ))}
           </div>
-          <div onMouseDown={onDrag} style={{height:6,background:"#e8e8e8",cursor:"ns-resize",display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <div style={{width:32,height:2,background:"#bbb",borderRadius:1}}/>
+          <div onMouseDown={onDrag} style={{height:6,background:BORDER_SUBTLE,cursor:"ns-resize",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <div style={{width:32,height:2,background:"#bbb",borderRadius:14}}/>
           </div>
         </>
       )}
@@ -1239,14 +1297,14 @@ function AnalysisSection({ allTeams }: { allTeams: string[] }) {
     } catch(e){console.error(e);}
     setLoading(false);
   };
-  const sel={flex:1,height:30,background:"#fff",border:`1px solid ${PANEL_BORDER}`,fontSize:11,padding:"0 8px",appearance:"none" as const,cursor:"pointer"};
+  const sel={flex:1,height:30,background:"#fff",border:`1px solid ${BORDER_OUTER}`,fontSize:11,padding:"0 8px",appearance:"none" as const,cursor:"pointer"};
 
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
-      <div style={{padding:"10px 14px",borderBottom:`1px solid ${PANEL_DIVIDER}`,background:"#fafafa"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+      <div style={{padding:"10px 14px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER}}>
         <div style={{fontSize:10,color:"#666"}}>Win probability and what drives it. Right panel shows impact of injuries, hot streaks, pace changes.</div>
       </div>
-      <div style={{padding:"10px 14px",borderBottom:`1px solid ${PANEL_DIVIDER}`,display:"flex",gap:10,alignItems:"center"}}>
+      <div style={{padding:"10px 14px",borderBottom:`1px solid ${BORDER_INNER}`,display:"flex",gap:10,alignItems:"center"}}>
         <select value={a} onChange={e=>setA(e.target.value)} style={sel}>{allTeams.map(t=><option key={t}>{t}</option>)}</select>
         <span style={{fontSize:11,color:"#999"}}>vs</span>
         <select value={b} onChange={e=>setB(e.target.value)} style={sel}>{allTeams.map(t=><option key={t}>{t}</option>)}</select>
@@ -1254,10 +1312,10 @@ function AnalysisSection({ allTeams }: { allTeams: string[] }) {
       </div>
       {matchup&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
-          <div style={{borderRight:`1px solid ${PANEL_DIVIDER}`}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",borderBottom:"1px solid #e8e8e8"}}>
+          <div style={{borderRight:`1px solid ${BORDER_INNER}`}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
               {[{name:a,prob:matchup.win_prob_a,score:matchup.score_a},{name:b,prob:matchup.win_prob_b,score:matchup.score_b}].map(({name,prob,score},i)=>(
-                <div key={name} style={{padding:"16px",borderRight:i===0?"1px solid #e8e8e8":"none",background:prob>50?"#f9f9f9":"#fff"}}>
+                <div key={name} style={{padding:"16px",borderRight:i===0?`1px solid ${BORDER_SUBTLE}`:"none",background:prob>50?BG_ALT:"#fff"}}>
                   <div style={{fontSize:10,color:"#888",marginBottom:4}}>{name}</div>
                   <div style={{fontSize:36,fontWeight:300,lineHeight:1}}>{prob.toFixed(1)}%</div>
                   {score&&<div style={{fontSize:10,color:"#bbb",marginTop:4}}>sim: {score}</div>}
@@ -1266,14 +1324,14 @@ function AnalysisSection({ allTeams }: { allTeams: string[] }) {
               ))}
             </div>
             {disagree&&(
-              <div style={{padding:"12px 16px",borderBottom:"1px solid #e8e8e8"}}>
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
                 <div style={{fontSize:9,letterSpacing:"0.1em",fontWeight:600,color:"#888",marginBottom:10}}>SIGNAL BREAKDOWN</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px 20px"}}>
                   {Object.entries(disagree.signals).map(([k,v]:any)=>{
                     const adv=v-50;
                     return (<div key={k} style={{display:"flex",alignItems:"center",gap:8}}>
                       <span style={{fontSize:9,color:"#888",minWidth:72}}>{k.replace(/_/g," ")}</span>
-                      <div style={{flex:1,height:2,background:"#e8e8e8",position:"relative"}}>
+                      <div style={{flex:1,height:2,background:BORDER_SUBTLE,position:"relative"}}>
                         <div style={{position:"absolute",left:"50%",top:0,bottom:0,width:1,background:"#bbb"}}/>
                         <div style={{position:"absolute",height:"100%",background:"#000",left:adv>=0?"50%":`${50+adv}%`,width:`${Math.abs(adv)}%`}}/>
                       </div>
@@ -1287,7 +1345,7 @@ function AnalysisSection({ allTeams }: { allTeams: string[] }) {
               <div style={{padding:"12px 16px"}}>
                 <div style={{fontSize:9,letterSpacing:"0.1em",fontWeight:600,color:"#888",marginBottom:8}}>HISTORICAL COMPS — {a}-analog won {((comps.historical_win_rate||0)*100).toFixed(0)}% of {comps.comps.length} similar games</div>
                 {comps.comps.slice(0,4).map((c:any,i:number)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:"1px solid #f4f4f4",fontSize:10}}>
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:`1px solid ${BORDER_SUBTLE}`,fontSize:10}}>
                     <span style={{color:"#ccc",minWidth:30}}>{c.season}</span>
                     <span style={{fontWeight:c.team_a_won?600:400,flex:1}}>({c.seed_a}) {c.team_a}</span>
                     <span style={{color:"#ccc"}}>vs</span>
@@ -1299,12 +1357,12 @@ function AnalysisSection({ allTeams }: { allTeams: string[] }) {
             )}
           </div>
           <div>
-            <div style={{padding:"8px 14px",borderBottom:"1px solid #e8e8e8",background:"#fafafa"}}>
+            <div style={{padding:"8px 14px",borderBottom:`1px solid ${BORDER_SUBTLE}`,background:BG_HEADER}}>
               <div style={{fontSize:9,letterSpacing:"0.1em",fontWeight:600,color:"#888"}}>WHAT IF — {a} win probability</div>
             </div>
             {whatif.map((r:any,i:number)=>{
               const base=whatif[0]?.new_prob||50; const delta=r.new_prob-base; const isBase=i===0;
-              return (<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:"1px solid #f4f4f4",background:isBase?"#f9f9f9":"#fff"}}>
+              return (<div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 16px",borderBottom:`1px solid ${BORDER_SUBTLE}`,background:isBase?BG_ALT:"#fff"}}>
                 <div style={{flex:1,fontSize:11,fontWeight:isBase?600:400}}>{r.scenario}</div>
                 <div style={{textAlign:"right",minWidth:60}}>
                   <div style={{fontSize:15,fontWeight:300}}>{r.new_prob.toFixed(1)}%</div>
@@ -1331,13 +1389,13 @@ function FirstFourSection({ sim }: { sim: SimState }) {
   if (games.length === 0) return null;
 
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
         {games.map((g: any, i: number) => {
           const pa = ff[g.team_a] || 50, pb = ff[g.team_b] || 50, tot = pa + pb || 100;
           const pA = (pa / tot) * 100, pB = (pb / tot) * 100, winner = pA >= pB ? g.team_a : g.team_b;
           return (
-            <div key={i} style={{padding:"12px 14px",borderRight:i%2===0?`1px solid ${PANEL_DIVIDER}`:"none",borderBottom:i<2?`1px solid ${PANEL_DIVIDER}`:"none"}}>
+            <div key={i} style={{padding:"12px 14px",borderRight:i%2===0?`1px solid ${BORDER_INNER}`:"none",borderBottom:i<2?`1px solid ${BORDER_INNER}`:"none"}}>
               <div style={{fontSize:9,color:"#888",marginBottom:8}}>{g.region} {g.seed}-seed — winner plays {g.plays}</div>
               {[{name:g.team_a,p:pA},{name:g.team_b,p:pB}].map(({name,p})=>(
                 <div key={name} style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
@@ -1377,8 +1435,8 @@ function ModelVsMarket({ sim }: { sim: SimState }) {
   const maxModel = Math.max(...rows.map(r => r.modelPct), 1);
 
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
-      <div style={{padding:"10px 14px",borderBottom:`1px solid ${PANEL_DIVIDER}`,background:"#fafafa"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+      <div style={{padding:"10px 14px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER}}>
         <div style={{fontSize:10,color:"#666"}}>Where our simulation disagrees with betting markets. Positive edge = model likes them more than Vegas.</div>
       </div>
       <div style={{overflowX:"auto"}}>
@@ -1395,7 +1453,7 @@ function ModelVsMarket({ sim }: { sim: SimState }) {
             {rows.slice(0, 16).map((r, i) => {
               const edgeColor = r.edge > 2 ? "#000" : r.edge < -2 ? "#999" : "#ccc";
               return (
-                <tr key={r.name} style={{borderBottom:"1px solid #f4f4f4",background:i%2===0?"#fff":"#fafafa"}}>
+                <tr key={r.name} style={{borderBottom:`1px solid ${BORDER_SUBTLE}`,background:i%2===0?"#fff":BG_HEADER}}>
                   <td style={{padding:"6px 10px",whiteSpace:"nowrap"}}>
                     <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
                       <Seed n={r.seed}/>
@@ -1404,8 +1462,8 @@ function ModelVsMarket({ sim }: { sim: SimState }) {
                   </td>
                   <td style={{padding:"6px 8px",textAlign:"center"}}>
                     <div style={{display:"flex",alignItems:"center",gap:6,justifyContent:"center"}}>
-                      <div style={{width:60,height:4,background:"#f0f0f0",borderRadius:2,overflow:"hidden"}}>
-                        <div style={{width:`${(r.modelPct/maxModel)*100}%`,height:"100%",background:"#000",borderRadius:2}}/>
+                      <div style={{width:60,height:4,background:"#f0f0f0",borderRadius:14,overflow:"hidden"}}>
+                        <div style={{width:`${(r.modelPct/maxModel)*100}%`,height:"100%",background:"#000",borderRadius:14}}/>
                       </div>
                       <span style={{minWidth:40}}>{pct(r.modelPct,1)}</span>
                     </div>
@@ -1438,8 +1496,8 @@ function RegionDifficulty({ sim }: { sim: SimState }) {
   const maxChamp = Math.max(...stats.map((s: any) => s.total_championship_pct), 1);
 
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
-      <div style={{padding:"10px 14px",borderBottom:`1px solid ${PANEL_DIVIDER}`,background:"#fafafa"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+      <div style={{padding:"10px 14px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER}}>
         <div style={{fontSize:10,color:"#666"}}>Which regions are stacked and which have soft paths to the Final Four.</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)"}}>
@@ -1448,28 +1506,28 @@ function RegionDifficulty({ sim }: { sim: SimState }) {
           const rank = [...stats].sort((a: any, b: any) => b.total_championship_pct - a.total_championship_pct).findIndex((x: any) => x.region === s.region) + 1;
           const label = rank === 1 ? "TOUGHEST" : rank === 4 ? "EASIEST" : "";
           return (
-            <div key={s.region} style={{padding:"14px 16px",borderRight:i<3?`1px solid ${PANEL_DIVIDER}`:"none"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div key={s.region} style={{padding:"14px 16px",borderRight:i<3?`1px solid ${BORDER_INNER}`:"none"}}>
+              <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:10}}>
                 <div style={{fontSize:11,fontWeight:700}}>{s.region.toUpperCase()}</div>
-                {label && <span style={{fontSize:8,fontWeight:600,letterSpacing:"0.08em",padding:"2px 6px",border:`1px solid ${PANEL_BORDER}`,background:rank===1?"#000":"#fff",color:rank===1?"#fff":"#000"}}>{label}</span>}
+                {label && <span style={{fontSize:8,fontWeight:600,letterSpacing:"0.08em",padding:"2px 6px",border:`1px solid ${BORDER_OUTER}`,background:rank===1?"#000":"#fff",color:rank===1?"#fff":"#000",alignSelf:"flex-start"}}>{label}</span>}
               </div>
               <div style={{fontSize:9,color:"#888",marginBottom:4}}>Avg. efficiency margin</div>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                <div style={{flex:1,height:4,background:"#f0f0f0",borderRadius:2,overflow:"hidden"}}>
-                  <div style={{width:`${(Math.abs(s.avg_em)/maxEM)*100}%`,height:"100%",background:"#000",borderRadius:2}}/>
+                <div style={{flex:1,height:4,background:"#f0f0f0",borderRadius:14,overflow:"hidden"}}>
+                  <div style={{width:`${(Math.abs(s.avg_em)/maxEM)*100}%`,height:"100%",background:"#000",borderRadius:14}}/>
                 </div>
                 <span style={{fontSize:11,fontWeight:600,minWidth:32}}>{s.avg_em > 0 ? "+" : ""}{s.avg_em}</span>
               </div>
               <div style={{fontSize:9,color:"#888",marginBottom:4}}>Combined title odds</div>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                <div style={{flex:1,height:4,background:"#f0f0f0",borderRadius:2,overflow:"hidden"}}>
-                  <div style={{width:`${(difficulty/maxChamp)*100}%`,height:"100%",background:rank<=2?"#000":"#bbb",borderRadius:2}}/>
+                <div style={{flex:1,height:4,background:"#f0f0f0",borderRadius:14,overflow:"hidden"}}>
+                  <div style={{width:`${(difficulty/maxChamp)*100}%`,height:"100%",background:rank<=2?"#000":"#bbb",borderRadius:14}}/>
                 </div>
                 <span style={{fontSize:11,fontWeight:600,minWidth:32}}>{pct(difficulty,0)}</span>
               </div>
               <div style={{fontSize:9,color:"#888",marginBottom:6}}>Top seeds</div>
               {s.top_seeds.map((t: any) => (
-                <div key={t.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"3px 0",borderBottom:"1px solid #f4f4f4"}}>
+                <div key={t.name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"3px 0",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
                   <span style={{display:"inline-flex",alignItems:"center",gap:5}}>
                     <Seed n={t.seed}/>
                     <span style={{fontSize:10,fontWeight:500}}>{t.name}</span>
@@ -1501,18 +1559,18 @@ function SeedHistory({ sim }: { sim: SimState }) {
     .sort((a, b) => a.seed - b.seed);
 
   return (
-    <div style={{border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
-      <div style={{padding:"10px 14px",borderBottom:`1px solid ${PANEL_DIVIDER}`,background:"#fafafa"}}>
+    <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+      <div style={{padding:"10px 14px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER}}>
         <div style={{fontSize:10,color:"#666"}}>Historical first-round win rate by seed. Context for how often upsets actually happen.</div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
-        <div style={{padding:"14px 16px",borderRight:`1px solid ${PANEL_DIVIDER}`}}>
+        <div style={{padding:"14px 16px",borderRight:`1px solid ${BORDER_INNER}`}}>
           <div style={{display:"flex",flexDirection:"column",gap:4}}>
             {entries.map(({seed, rate}) => (
               <div key={seed} style={{display:"grid",gridTemplateColumns:"28px 1fr 44px",alignItems:"center",gap:8}}>
                 <Seed n={seed}/>
-                <div style={{height:5,background:"#f0f0f0",borderRadius:3,overflow:"hidden"}}>
-                  <div style={{width:`${rate*100}%`,height:"100%",background:rate>0.8?"#000":rate>0.5?"#555":rate>0.3?"#999":"#ccc",borderRadius:3}}/>
+                <div style={{height:5,background:"#f0f0f0",borderRadius:14,overflow:"hidden"}}>
+                  <div style={{width:`${rate*100}%`,height:"100%",background:rate>0.8?"#000":rate>0.5?"#555":rate>0.3?"#999":"#ccc",borderRadius:14}}/>
                 </div>
                 <span style={{fontSize:10,fontWeight:rate>0.5?600:400,textAlign:"right"}}>{(rate*100).toFixed(0)}%</span>
               </div>
@@ -1524,7 +1582,7 @@ function SeedHistory({ sim }: { sim: SimState }) {
           {upsets.map((u: any, i: number) => {
             const historicalUpsetRate = 1 - (history[String(u.dog_seed)] || 0);
             return (
-              <div key={i} style={{marginBottom:8,paddingBottom:8,borderBottom:"1px solid #f4f4f4"}}>
+              <div key={i} style={{marginBottom:8,paddingBottom:8,borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
                   <span style={{fontSize:10,fontWeight:600}}>({u.dog_seed}) {u.underdog} over ({u.fav_seed}) {u.favorite}</span>
                   <span style={{fontSize:10,fontWeight:600}}>{pct(u.upset_prob,0)}</span>
@@ -1712,19 +1770,19 @@ export default function App() {
         <a href="https://github.com/alexh212" target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#6b7280",textDecoration:"none",fontWeight:500}}>github.com/alexh212 ↗</a>
       </div>
 
-      <div style={{border:"1px solid #ebeff5",borderRadius:14,padding:12,marginBottom:14,background:"#fff"}}>
+      <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,padding:12,marginBottom:14,background:"#fff"}}>
         <div className="hero-grid">
-          <div style={{padding:"8px 10px",border:"1px solid #f1f5f9",borderRadius:10}}>
+          <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14}}>
             <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:4,textTransform:"uppercase"}}>{sim.complete?"Projected Champion":"Current Leader"}</div>
             <div style={{fontSize:26,fontWeight:700,lineHeight:1.05}}>{leaderName}</div>
             <div style={{fontSize:12,color:"#6b7280",marginTop:5}}>{leaderPct}</div>
             {leaderPctNum > 0 && (
-              <div style={{height:3,background:"#f0f0f0",borderRadius:2,overflow:"hidden",marginTop:8}}>
-                <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${Math.min(100, leaderPctNum)}%`,height:"100%",background:sim.complete?GREEN:ACCENT,transition:"width 0.5s ease",borderRadius:2}}/>
+              <div style={{height:3,background:"#f0f0f0",borderRadius:14,overflow:"hidden",marginTop:8}}>
+                <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${Math.min(100, leaderPctNum)}%`,height:"100%",background:sim.complete?GREEN:ACCENT,transition:"width 0.5s ease",borderRadius:14}}/>
               </div>
             )}
           </div>
-          <div style={{padding:"8px 10px",border:"1px solid #f1f5f9",borderRadius:10}}>
+          <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14}}>
             <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:5,textTransform:"uppercase"}}>Final Four Leaders</div>
             <div style={{display:"grid",gap:6}}>
               {finalFourTop.map(([t,p],i)=>(
@@ -1733,14 +1791,14 @@ export default function App() {
                     <span style={{fontWeight:500}}>{t}</span>
                     <span style={{color:"#6b7280"}}>{pct(p)}</span>
                   </div>
-                  <div style={{height:3,background:"#f0f0f0",borderRadius:2,overflow:"hidden"}}>
-                    <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/ffMax)*100}%`,height:"100%",background:i===0?ACCENT:"#ccc",transition:"width 0.5s ease",borderRadius:2}}/>
+                  <div style={{height:3,background:"#f0f0f0",borderRadius:14,overflow:"hidden"}}>
+                    <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/ffMax)*100}%`,height:"100%",background:i===0?ACCENT:"#ccc",transition:"width 0.5s ease",borderRadius:14}}/>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-          <div style={{padding:"8px 10px",border:"1px solid #f1f5f9",borderRadius:10,display:"grid",alignContent:"space-between"}}>
+          <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14,display:"grid",alignContent:"space-between"}}>
             <div style={{fontSize:10,color:"#6b7280",lineHeight:1.6}}>
               {sim.done>0?`${sim.done.toLocaleString()} sims run`:"Ready to simulate"}<br/>
               {sim.complete
@@ -1835,7 +1893,7 @@ export default function App() {
               </Collapse>
             </>
           ) : (
-            <div style={{border:"1px dashed #e5e7eb",borderRadius:10,padding:"12px 14px",fontSize:11,color:"#6b7280",background:"#fff"}}>
+            <div style={{border:`1px dashed ${BORDER_OUTER}`,borderRadius:14,padding:"12px 14px",fontSize:11,color:"#6b7280",background:"#fff"}}>
               Run a simulation to unlock advanced insights.
             </div>
           )}
@@ -1848,7 +1906,7 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{borderTop:"1px solid #e8e8e8",marginTop:48,paddingTop:14,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+      <div style={{borderTop:`1px solid ${BORDER_SUBTLE}`,marginTop:48,paddingTop:14,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
         <a href="https://github.com/alexh212" target="_blank" rel="noopener noreferrer" style={{fontSize:9,color:"#bbb",textDecoration:"none"}}>github.com/alexh212</a>
         <span style={{fontSize:9,color:"#bbb"}}>LR + XGBoost + LightGBM · isotonic calibration · latent draws · rolling-origin CV · 77 R64 games 2005-2025 · 20/20 benchmarks</span>
         <span style={{fontSize:9,color:"#bbb"}}>Next.js · React · TypeScript · Recharts</span>

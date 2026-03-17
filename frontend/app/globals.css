@@ -20,30 +20,12 @@ code {
 
 html { font-size: 14px; }
 
-:root {
-  --ui-border-uniform: #e5e7eb;
-}
-
 body {
   background: #fff;
   color: #111;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* Force a single border treatment across inline-styled components. */
-[style*="border:"] {
-  border-width: 1px !important;
-  border-style: solid !important;
-  border-color: var(--ui-border-uniform) !important;
-}
-
-[style*="border-top"],
-[style*="border-right"],
-[style*="border-bottom"],
-[style*="border-left"] {
-  border-color: var(--ui-border-uniform) !important;
 }
 
 @keyframes blink {
@@ -71,7 +53,7 @@ input[type=range] {
   appearance: none;
   height: 3px;
   background: #e0e0e0;
-  border-radius: 2px;
+  border-radius: 14px;
   outline: none;
   cursor: pointer;
 }
@@ -80,7 +62,7 @@ input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 11px;
   height: 11px;
-  border-radius: 50%;
+  border-radius: 14px;
   background: #111;
   cursor: pointer;
 }
