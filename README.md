@@ -43,53 +43,62 @@ I just wanted to make a good bracket despite not knowing a lot about basketball.
 ## Tech Stack
 
 Backend
-- FastAPI  
-- Python 3.12  
-- uvicorn  
-- scipy  
-- pandas  
-- scikit-learn  
-- xgboost  
-- lightgbm  
+- FastAPI
+- Python 3.12
+- uvicorn
+- scipy
+- pandas
+- scikit-learn
+- xgboost
+- lightgbm
 
 Frontend
-- Next.js 14  
-- React  
-- TypeScript  
-- Recharts  
-- Tailwind CSS  
+- Next.js 14
+- React
+- TypeScript
+- Tailwind CSS (used for global styles/build pipeline)
 
 Deployment
-- Render  
+- Render for both frontend and backend
 
 ## Live Demo
 
-Frontend: https://bracket-simulator.onrender.com  
-API: https://bracketedge-api.onrender.com  
+Frontend: https://bracket-simulator.onrender.com
+API: https://bracketedge-api.onrender.com
 
 ## Running Locally
 
 Backend
 
-cd backend  
-python -m venv venv  
-source venv/bin/activate   # Windows: venv\Scripts\activate  
-pip install -r requirements.txt  
-uvicorn main:app --reload --port 8001  
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8001
+```
 
 Frontend
 
-cd frontend  
-npm install  
-npm run dev  
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-Frontend connects to http://localhost:8001 by default  
-To override: set NEXT_PUBLIC_API_URL  
+The frontend connects to `http://localhost:8001` by default.
+To override it, set `NEXT_PUBLIC_API_URL`.
 
 ## Environment Variables
 
-Backend  
-None required for local development  
+Backend
+- None required for local development
 
-Frontend (production)  
-NEXT_PUBLIC_API_URL (e.g. https://bracketedge-api.onrender.com)
+Frontend
+- `NEXT_PUBLIC_API_URL` for pointing the UI at the API
+
+## Notes
+
+- `backend/models/model_v1_best.pkl` is a runtime artifact used for inference.
+- `backend/reports/*.json` are generated reports and are not required to run the app.
+- Render deployment is defined in `render.yaml`.

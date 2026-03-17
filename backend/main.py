@@ -1,24 +1,206 @@
 """Bracket Simulation — FastAPI backend with SSE streaming."""
-import sys, os, time, json, random
+import sys, os, time, json, random, threading, logging, math, re
+from collections import defaultdict, deque
+from pathlib import Path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
-from typing import Dict, List, Optional
+from pydantic import BaseModel, Field, field_validator
+from typing import Deque, DefaultDict, Dict, List, Optional
 
 from data.teams_2026 import TEAMS_2026, FIRST_FOUR_GAMES, FIRST_FOUR_TEAMS
 from services.simulation import SimulationConfig, Team
 
-app = FastAPI(title="Bracket Simulation API", version="4.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"],
-                   allow_methods=["*"], allow_headers=["*"])
+logger = logging.getLogger("bracket_api")
+
+ROOT_DIR = Path(__file__).resolve().parent
+REPORT_PATH = ROOT_DIR / "reports" / "model_pipeline_results.json"
+
+MAX_N_SIMS = 50_000
+MAX_JSON_PARAM_LEN = 10_000
+MAX_FORCED_PICKS = 64
+MAX_OVERRIDES = 68
+SIM_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("SIM_RATE_LIMIT_MAX_REQUESTS", "6"))
+SIM_RATE_LIMIT_WINDOW_SEC = int(os.getenv("SIM_RATE_LIMIT_WINDOW_SEC", "60"))
+MODEL_LOG_RATE_LIMIT_MAX_REQUESTS = int(os.getenv("MODEL_LOG_RATE_LIMIT_MAX_REQUESTS", "2"))
+MODEL_LOG_RATE_LIMIT_WINDOW_SEC = int(os.getenv("MODEL_LOG_RATE_LIMIT_WINDOW_SEC", "300"))
+ALLOW_MODEL_LOG_REBUILD = os.getenv("ENABLE_MODEL_LOG_REBUILD", "").lower() in {"1", "true", "yes"}
+_FORCED_PICK_KEY_RE = re.compile(r"^(East|West|Midwest|South|FinalFour):\d+:\d+$")
+
+app = FastAPI(title="Bracket Simulation API", version="4.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://bracket-simulator.onrender.com",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
 _VALID = {f.name for f in Team.__dataclass_fields__.values()}
 CLEAN  = {k:{fk:fv for fk,fv in d.items() if fk in _VALID} for k,d in TEAMS_2026.items()}
+_ALL_TEAM_NAMES = set(CLEAN) | set(FIRST_FOUR_TEAMS)
+_NUMERIC_SCENARIO_FIELDS = {
+    name for name, field_info in Team.__dataclass_fields__.items()
+    if field_info.type in {int, float}
+}
 
-_MODEL_LOG = None
+_model_log_lock = threading.Lock()
+_model_log_cache: Optional[str] = None
+_rate_limit_lock = threading.Lock()
+_rate_limit_buckets: Dict[str, DefaultDict[str, Deque[float]]] = {
+    "simulate_stream": defaultdict(deque),
+    "model_log": defaultdict(deque),
+}
+
+
+def _normalize_team_name(v: str) -> str:
+    v = v.strip()
+    if not v:
+        raise ValueError("Team name required")
+    if len(v) > 100:
+        raise ValueError("Team name too long")
+    return v
+
+
+def _client_key(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _enforce_rate_limit(
+    request: Request,
+    bucket: str,
+    max_requests: int,
+    window_sec: int,
+) -> None:
+    client = _client_key(request)
+    if client in {"127.0.0.1", "::1", "localhost"}:
+        return
+
+    now = time.time()
+    with _rate_limit_lock:
+        hits = _rate_limit_buckets[bucket][client]
+        while hits and now - hits[0] > window_sec:
+            hits.popleft()
+        if len(hits) >= max_requests:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded, please retry shortly")
+        hits.append(now)
+
+
+def _parse_team_overrides(raw_value: str) -> Dict[str, float]:
+    try:
+        raw = json.loads(raw_value) if raw_value else {}
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="team_overrides must be valid JSON") from exc
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="team_overrides must be an object")
+    if len(raw) > MAX_OVERRIDES:
+        raise HTTPException(status_code=400, detail=f"Too many team overrides (max {MAX_OVERRIDES})")
+
+    parsed: Dict[str, float] = {}
+    for team_name, value in raw.items():
+        if team_name not in CLEAN:
+            raise HTTPException(status_code=400, detail=f"Unknown override team: {team_name}")
+        if isinstance(value, bool):
+            raise HTTPException(status_code=400, detail=f"Invalid override for {team_name}")
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"Override for {team_name} must be numeric") from exc
+        if not math.isfinite(numeric_value):
+            raise HTTPException(status_code=400, detail=f"Override for {team_name} must be finite")
+        parsed[team_name] = max(-250.0, min(250.0, numeric_value))
+    return parsed
+
+
+def _parse_forced_picks(raw_value: str) -> Dict[str, str]:
+    try:
+        raw = json.loads(raw_value) if raw_value else {}
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="forced_picks must be valid JSON") from exc
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="forced_picks must be an object")
+    if len(raw) > MAX_FORCED_PICKS:
+        raise HTTPException(status_code=400, detail=f"Too many forced picks (max {MAX_FORCED_PICKS})")
+
+    parsed: Dict[str, str] = {}
+    for pick_key, winner_name in raw.items():
+        if not isinstance(pick_key, str) or not _FORCED_PICK_KEY_RE.match(pick_key):
+            raise HTTPException(status_code=400, detail=f"Invalid forced pick key: {pick_key}")
+        if not isinstance(winner_name, str) or len(winner_name) > 100:
+            raise HTTPException(status_code=400, detail=f"Invalid forced pick winner for {pick_key}")
+        if winner_name not in _ALL_TEAM_NAMES:
+            raise HTTPException(status_code=400, detail=f"Unknown forced pick team: {winner_name}")
+        parsed[pick_key] = winner_name
+    return parsed
+
+
+def _format_model_report_log(report: Dict) -> str:
+    lines = [
+        "Precomputed model summary",
+        "Generated from backend/reports/model_pipeline_results.json",
+        "",
+        f"model_version: {report.get('model_version', 'unknown')}",
+    ]
+
+    final_metrics = report.get("final_metrics", {})
+    if isinstance(final_metrics, dict) and final_metrics:
+        lines.append("")
+        lines.append("Final metrics")
+        for model_name, metrics in sorted(final_metrics.items()):
+            if not isinstance(metrics, dict):
+                continue
+            lines.append(
+                f"- {model_name}: "
+                f"log_loss={metrics.get('log_loss', 'n/a')} "
+                f"brier={metrics.get('brier', 'n/a')} "
+                f"accuracy={metrics.get('accuracy', 'n/a')} "
+                f"ece={metrics.get('ece', 'n/a')}"
+            )
+
+    benchmarks = report.get("benchmarks", {})
+    if isinstance(benchmarks, dict) and benchmarks:
+        lines.append("")
+        lines.append("Benchmarks")
+        for key, value in sorted(benchmarks.items()):
+            lines.append(f"- {key}: {value}")
+
+    return "\n".join(lines)
+
+
+def _load_model_log_cache() -> str:
+    if REPORT_PATH.exists():
+        try:
+            with REPORT_PATH.open() as f:
+                report = json.load(f)
+            return _format_model_report_log(report)
+        except (OSError, json.JSONDecodeError):
+            logger.exception("Failed to read precomputed model report")
+
+    if ALLOW_MODEL_LOG_REBUILD:
+        try:
+            import io, contextlib
+            from pipeline.model_pipeline import run_model_pipeline
+
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                run_model_pipeline(save=False, verbose=True)
+            return buf.getvalue()
+        except Exception:
+            logger.exception("Model pipeline failed")
+            return "Model training failed. Check server logs."
+
+    return (
+        "Model log rebuild is disabled in this deployment.\n"
+        "Run the training pipeline locally to regenerate reports."
+    )
 
 
 class MatchupRequest(BaseModel):
@@ -26,10 +208,73 @@ class MatchupRequest(BaseModel):
     team_b: str
     overrides: Dict[str, float] = Field(default_factory=dict)
 
+    @field_validator("team_a", "team_b")
+    @classmethod
+    def team_must_be_short(cls, v: str) -> str:
+        return _normalize_team_name(v)
+
+    @field_validator("overrides")
+    @classmethod
+    def validate_overrides(cls, v: Dict[str, float]) -> Dict[str, float]:
+        if len(v) > MAX_OVERRIDES:
+            raise ValueError(f"Too many overrides (max {MAX_OVERRIDES})")
+        cleaned: Dict[str, float] = {}
+        for team_name, value in v.items():
+            if team_name not in CLEAN:
+                raise ValueError(f"Unknown override team: {team_name}")
+            if isinstance(value, bool):
+                raise ValueError(f"Invalid override for {team_name}")
+            numeric_value = float(value)
+            if not math.isfinite(numeric_value):
+                raise ValueError(f"Override for {team_name} must be finite")
+            cleaned[team_name] = max(-250.0, min(250.0, numeric_value))
+        return cleaned
+
+
 class WhatIfRequest(BaseModel):
     team_a: str
     team_b: str
     scenarios: List[Dict]
+
+    @field_validator("team_a", "team_b")
+    @classmethod
+    def normalize_teams(cls, v: str) -> str:
+        return _normalize_team_name(v)
+
+    @field_validator("scenarios")
+    @classmethod
+    def limit_scenarios(cls, v: list) -> list:
+        if len(v) > 20:
+            raise ValueError("Too many scenarios (max 20)")
+        for scenario in v:
+            if not isinstance(scenario, dict):
+                raise ValueError("Each scenario must be an object")
+            target = scenario.get("target", "a")
+            label = scenario.get("label", "")
+            if target not in {"a", "b", "both"}:
+                raise ValueError("Scenario target must be one of: a, b, both")
+            if label and (not isinstance(label, str) or len(label) > 80):
+                raise ValueError("Scenario label must be a short string")
+
+            unknown_fields = set(scenario) - {"label", "target"} - _NUMERIC_SCENARIO_FIELDS
+            if unknown_fields:
+                bad = ", ".join(sorted(unknown_fields))
+                raise ValueError(f"Unsupported scenario fields: {bad}")
+
+            update_fields = [k for k in scenario.keys() if k not in {"label", "target"}]
+            if not update_fields:
+                raise ValueError("Each scenario must modify at least one field")
+            for field_name in update_fields:
+                value = scenario[field_name]
+                if isinstance(value, bool):
+                    raise ValueError(f"Scenario field {field_name} must be numeric")
+                try:
+                    numeric_value = float(value)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"Scenario field {field_name} must be numeric") from exc
+                if not math.isfinite(numeric_value):
+                    raise ValueError(f"Scenario field {field_name} must be finite")
+        return v
 
 
 @app.get("/health")
@@ -42,9 +287,6 @@ def teams():
 
 @app.get("/model-info")
 def model_info():
-    """
-    Lightweight provenance endpoint for frontend transparency.
-    """
     from data.historical.tournament_games import load_dataframe
     from pipeline.model_pipeline import CORE_FEATURES, MARKET_FEATURES
 
@@ -90,6 +332,7 @@ def model_info():
 # ── SSE streaming simulation ───────────────────────────────────────────────────
 @app.get("/simulate/stream")
 def simulate_stream(
+    request: Request,
     n_sims: int = 10_000,
     emit_every: int = 250,
     latent_sigma: float = 0.06,
@@ -101,31 +344,20 @@ def simulate_stream(
     Emits: start → progress (every emit_every sims) → complete
     Each run uses a random seed so results differ between runs.
     """
+    _enforce_rate_limit(request, "simulate_stream", SIM_RATE_LIMIT_MAX_REQUESTS, SIM_RATE_LIMIT_WINDOW_SEC)
+    n_sims = max(100, min(n_sims, MAX_N_SIMS))
+    emit_every = max(50, min(emit_every, n_sims))
+    latent_sigma = max(0.0, min(latent_sigma, 0.20))
+
+    if len(team_overrides) > MAX_JSON_PARAM_LEN:
+        raise HTTPException(status_code=400, detail="team_overrides payload too large")
+    if len(forced_picks) > MAX_JSON_PARAM_LEN:
+        raise HTTPException(status_code=400, detail="forced_picks payload too large")
+
     from services.streaming_sim import run_streaming_simulation
 
-    parsed_overrides: Dict[str, float] = {}
-    try:
-        raw = json.loads(team_overrides) if team_overrides else {}
-        if isinstance(raw, dict):
-            for k, v in raw.items():
-                if k in CLEAN:
-                    try:
-                        # Clamp to a sane tournament adjustment range.
-                        parsed_overrides[k] = max(-250.0, min(250.0, float(v)))
-                    except Exception:
-                        continue
-    except Exception:
-        parsed_overrides = {}
-
-    parsed_forced_picks: Dict[str, str] = {}
-    try:
-        raw_forced = json.loads(forced_picks) if forced_picks else {}
-        if isinstance(raw_forced, dict):
-            for k, v in raw_forced.items():
-                if isinstance(k, str) and isinstance(v, str):
-                    parsed_forced_picks[k] = v
-    except Exception:
-        parsed_forced_picks = {}
+    parsed_overrides = _parse_team_overrides(team_overrides)
+    parsed_forced_picks = _parse_forced_picks(forced_picks)
 
     def event_stream():
         try:
@@ -138,8 +370,9 @@ def simulate_stream(
                 forced_picks=parsed_forced_picks,
             ):
                 yield f"data: {json.dumps(event)}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+        except Exception:
+            logger.exception("Simulation stream error")
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Simulation failed'})}\n\n"
 
     return StreamingResponse(
         event_stream(),
@@ -174,7 +407,12 @@ def matchup(req: MatchupRequest):
     else:
         result["score_a"] = base - margin // 2
         result["score_b"] = base + margin // 2
-    return {"team_a": req.team_a, "team_b": req.team_b, **result}
+    return {
+        "team_a": req.team_a,
+        "team_b": req.team_b,
+        "score_note": "Synthetic score estimate for presentation only; use win probability as the model output.",
+        **result,
+    }
 
 @app.post("/whatif")
 def whatif(req: WhatIfRequest):
@@ -220,11 +458,8 @@ def region_stats():
     stats = []
     for region in REGIONS:
         region_teams = {k: v for k, v in TEAMS_2026.items() if v.get("region") == region}
-        seeds = [v["seed"] for v in region_teams.values()]
-        avg_seed = sum(seeds) / len(seeds) if seeds else 8.5
         total_em = sum(v.get("kenpom_adj_off", 110) - v.get("kenpom_adj_def", 103) for v in region_teams.values())
         avg_em = total_em / len(region_teams) if region_teams else 0
-        top_elo = sorted(region_teams.values(), key=lambda t: t.get("elo_current", 0), reverse=True)
         top4 = [{"name": k, "seed": v["seed"], "elo": v.get("elo_current", 0),
                   "championship_odds_pct": v.get("championship_odds_pct", 0)}
                  for k, v in region_teams.items() if v["seed"] <= 4]
@@ -241,16 +476,19 @@ def region_stats():
 
 
 @app.get("/model-log")
-def model_log():
-    global _MODEL_LOG
-    if _MODEL_LOG is None:
-        try:
-            import io, contextlib
-            from pipeline.model_pipeline import run_model_pipeline
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                run_model_pipeline(save=False, verbose=True)
-            _MODEL_LOG = buf.getvalue()
-        except Exception as e:
-            _MODEL_LOG = f"Error: {e}"
-    return {"log": _MODEL_LOG}
+def model_log(request: Request):
+    _enforce_rate_limit(request, "model_log", MODEL_LOG_RATE_LIMIT_MAX_REQUESTS, MODEL_LOG_RATE_LIMIT_WINDOW_SEC)
+    global _model_log_cache
+    with _model_log_lock:
+        if _model_log_cache is not None:
+            return {"log": _model_log_cache}
+
+    with _model_log_lock:
+        if _model_log_cache is not None:
+            return {"log": _model_log_cache}
+        _model_log_cache = _load_model_log_cache()
+    return {
+        "log": _model_log_cache,
+        "rebuild_enabled": ALLOW_MODEL_LOG_REBUILD,
+        "source": "precomputed_report" if REPORT_PATH.exists() else "runtime_message",
+    }

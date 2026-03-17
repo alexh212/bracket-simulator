@@ -5,10 +5,17 @@ Phases 5–8 combined:
               possession scoring, EV optimization, pool strategy, uncertainty intervals)
   Phase 7 — Ablation warfare (feature group removal, source removal)
   Phase 8 — Error analysis (failure labels, bias tests, blind spots)
+
+This module is offline/research tooling. The request-serving API should use
+`pipeline.calibrated_game_model`, `services.simulation`, and
+`services.streaming_sim` instead of importing this file directly.
 """
 import sys, os, json, time, warnings
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-warnings.filterwarnings("ignore")
+from sklearn.exceptions import ConvergenceWarning
+warnings.filterwarnings("ignore", category=FutureWarning, module="sklearn")
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
 import numpy as np
 import pandas as pd
@@ -152,8 +159,7 @@ Key improvements over v1:
   - Uncertainty intervals via bootstrap over sims
 """
 
-REGIONS  = ["East","West","Midwest","South"]
-R64_ORDER = [(1,16),(8,9),(5,12),(4,13),(6,11),(3,14),(7,10),(2,15)]
+from services.simulation import REGIONS, R64_ORDER
 
 # Public first-round pick rates (approximate ESPN bracket challenge data)
 # Format: {seed: public_pick_rate_against_opponent}

@@ -1,5 +1,6 @@
 # OS
 .DS_Store
+**/.DS_Store
 
 # Python
 __pycache__/
@@ -15,6 +16,7 @@ frontend/out/
 
 # Models
 backend/models/*.pkl
+backend/reports/*.json
 
 # Environment
 .env

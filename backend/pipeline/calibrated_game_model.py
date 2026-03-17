@@ -10,7 +10,7 @@ output a calibrated win probability for team_a.
 
 The simulation engine calls this. It does NOT touch training code.
 """
-import sys, os
+import sys, os, hashlib, logging
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
@@ -24,8 +24,12 @@ from pipeline.baselines import seed_win_prob, SEED_MATCHUP_RATES
 from data.historical.tournament_games import load_symmetrized
 
 import warnings
-warnings.filterwarnings("ignore")
+from sklearn.exceptions import ConvergenceWarning
+warnings.filterwarnings("ignore", category=FutureWarning, module="sklearn")
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
+logger = logging.getLogger("bracket_api")
 PYTH_EXP   = 11.5
 LEAGUE_DEF = 100.0
 MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -226,6 +230,14 @@ def build_matchup_row(a: Dict, b: Dict) -> Dict:
     return row
 
 
+def _sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 class CalibratedGameModel:
     """
     The single, clean game model interface.
@@ -254,13 +266,18 @@ class CalibratedGameModel:
 
     def load(self, path: str = MODEL_PATH) -> "CalibratedGameModel":
         """Load pre-trained model from disk."""
-        if os.path.exists(path):
-            self.model = joblib.load(path)
-            self.is_fitted = True
-            self._cache.clear()
-        else:
-            # Fall back to training
-            self.fit()
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Model artifact not found: {path}")
+
+        expected_sha256 = os.getenv("MODEL_SHA256", "").strip().lower()
+        if expected_sha256:
+            actual_sha256 = _sha256_file(path)
+            if actual_sha256 != expected_sha256:
+                raise RuntimeError("Model artifact checksum mismatch")
+
+        self.model = joblib.load(path)
+        self.is_fitted = True
+        self._cache.clear()
         return self
 
     def predict(self, a: Dict, b: Dict,
@@ -372,6 +389,8 @@ def get_game_model(force_retrain: bool = False) -> CalibratedGameModel:
     global _GAME_MODEL
     if _GAME_MODEL is None or force_retrain:
         _GAME_MODEL = CalibratedGameModel()
+        if force_retrain:
+            logger.warning("Force retrain requested; loading artifact after cache reset")
         _GAME_MODEL.load(MODEL_PATH)
     return _GAME_MODEL
 

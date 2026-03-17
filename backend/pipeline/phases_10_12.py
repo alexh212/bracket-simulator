@@ -26,6 +26,11 @@ Phase 12 — Final standard:
   - Bracket EV layer
   - Counts correct, round labels exact ✓
   - Complete automated test suite
+
+This module mixes runtime-facing helpers with offline research utilities.
+The API currently relies on `find_historical_comps`, `ensemble_disagreement`,
+and `what_if_analysis`; the remaining functions should be treated as offline
+analysis/reporting tools.
 """
 
 import sys, os, json, time
@@ -36,7 +41,8 @@ import pandas as pd
 from scipy.special import expit
 from typing import Dict, List, Optional, Tuple, Any
 import warnings
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=FutureWarning, module="sklearn")
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -197,6 +203,7 @@ def what_if_analysis(
     for scen in scenarios:
         a_mod = dict(base_a)
         b_mod = dict(base_b)
+        scen = dict(scen)
         target = scen.pop("target", "a")
         label  = scen.pop("label", str(scen))
 

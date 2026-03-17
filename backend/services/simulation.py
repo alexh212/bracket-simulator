@@ -26,15 +26,16 @@ ROUND DEFINITIONS (exact, no ambiguity):
 
 import os
 import sys
+import logging
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 from scipy.special import expit
-import copy
 
 # ── Round order (R64 bracket seeding) ────────────────────────────────────────
 R64_ORDER = [(1,16),(8,9),(5,12),(4,13),(6,11),(3,14),(7,10),(2,15)]
 REGIONS   = ["East","West","Midwest","South"]
+logger = logging.getLogger("bracket_api")
 
 # ── Team dataclass ─────────────────────────────────────────────────────────
 @dataclass
@@ -139,23 +140,9 @@ class Team:
 class SimulationConfig:
     n_sims: int = 10_000
 
-    # Feature weights (passed to game model for custom calibration)
-    w_efficiency:  float = 0.28
-    w_rebounding:  float = 0.12
-    w_turnover:    float = 0.12
-    w_ft:          float = 0.06
-    w_experience:  float = 0.08
-    w_form:        float = 0.14
-    w_market:      float = 0.12
-    w_coaching:    float = 0.08
-    market_blend:  float = 0.18
-    seed_prior_weight: float = 0.05
-
     # Latent strength sigma: how much to perturb team power per sim
     # 0.0 = no latent draws (pure point estimates), 0.08 = realistic tournament variance
     latent_sigma: float = 0.06
-    # Sampling mode retained for compatibility with callers.
-    sampling: str = "bernoulli"
 
     # Team Elo overrides: {team_name: delta applied to elo_current}
     team_overrides: Dict[str, float] = field(default_factory=dict)
@@ -171,7 +158,8 @@ def _get_game_model():
         try:
             from pipeline.calibrated_game_model import get_game_model
             _GAME_MODEL = get_game_model()
-        except Exception:
+        except (ImportError, FileNotFoundError, OSError, RuntimeError, ValueError):
+            logger.exception("Failed to initialize calibrated game model")
             _GAME_MODEL = None
     return _GAME_MODEL
 
@@ -233,7 +221,8 @@ def compute_matchup_prob(
             try:
                 base_prob = gm.predict(da, db, latent_a=0.0, latent_b=0.0)
                 bd = gm.predict_with_breakdown(da, db)["breakdown"]
-            except Exception:
+            except (AttributeError, OSError, RuntimeError, ValueError):
+                logger.exception("Falling back to heuristic matchup probability for %s vs %s", a.name, b.name)
                 base_prob = _fallback_prob(a, b, cfg)
                 bd = {}
         else:
@@ -287,8 +276,7 @@ def _fallback_prob(a: Team, b: Team, cfg: SimulationConfig) -> float:
 
 # ── Single game sampler ───────────────────────────────────────────────────
 def simulate_game(prob: float, variance: float,
-                  rng: np.random.Generator,
-                  method: str = "bernoulli") -> bool:
+                  rng: np.random.Generator) -> bool:
     """Simulate one game. Variance comes from latent draws, not per-game sampling."""
     return bool(rng.random() < prob)
 
@@ -330,7 +318,7 @@ def simulate_region(
             lp_a = latent_powers.get(ta.name, 0.0) if latent_powers else 0.0
             lp_b = latent_powers.get(tb.name, 0.0) if latent_powers else 0.0
             prob, var, _ = compute_matchup_prob(ta, tb, cfg, cache, lp_a, lp_b)
-            winner = ta if simulate_game(prob, var, rng, cfg.sampling) else tb
+            winner = ta if simulate_game(prob, var, rng) else tb
             next_round.append(winner)
             winners.append(winner.name)
         round_winners[label] = winners
@@ -359,13 +347,13 @@ def simulate_final_four(
     w, s = region_champs["West"],    region_champs["South"]
 
     p1, v1, _ = compute_matchup_prob(e, m, cfg, cache, lp(e.name), lp(m.name))
-    sf1 = e if simulate_game(p1, v1, rng, cfg.sampling) else m
+    sf1 = e if simulate_game(p1, v1, rng) else m
 
     p2, v2, _ = compute_matchup_prob(w, s, cfg, cache, lp(w.name), lp(s.name))
-    sf2 = w if simulate_game(p2, v2, rng, cfg.sampling) else s
+    sf2 = w if simulate_game(p2, v2, rng) else s
 
     p3, v3, _ = compute_matchup_prob(sf1, sf2, cfg, cache, lp(sf1.name), lp(sf2.name))
-    champ = sf1 if simulate_game(p3, v3, rng, cfg.sampling) else sf2
+    champ = sf1 if simulate_game(p3, v3, rng) else sf2
 
     # Return ALL four F4 participants so streaming_sim can count them correctly
     return e.name, m.name, w.name, s.name, sf1.name, sf2.name, champ.name
@@ -636,215 +624,3 @@ if __name__ == "__main__":
     print(f"  Final Four sum:  {f4_sum:.1f}% (should be ~400%)")
     print(f"  Elite Eight sum: {e8_sum:.1f}% (should be ~800%)")
     print(f"  Model: {r.model_used}")
-
-
-# ── First Four simulation ─────────────────────────────────────────────────
-def simulate_first_four(
-    raw_teams: Dict,
-    cfg: "SimulationConfig",
-    rng: "np.random.Generator",
-    cache: Dict,
-    latent_powers: Optional[Dict[str, float]] = None,
-) -> Dict[str, str]:
-    """
-    Simulate all 4 First Four games.
-    Returns {slot: winner_name} e.g. {"Midwest_16": "UMBC", "West_11": "NC State", ...}
-    """
-    try:
-        from data.teams_2026 import FIRST_FOUR_GAMES, FIRST_FOUR_TEAMS
-    except ImportError:
-        return {}
-
-    VALID = {f.name for f in Team.__dataclass_fields__.values()}
-    all_teams = {}
-    for name, data in raw_teams.items():
-        clean = {k: v for k, v in data.items() if k in VALID}
-        all_teams[name] = Team(name=name, **clean)
-
-    winners = {}
-    for game in FIRST_FOUR_GAMES:
-        ta_name = game["team_a"]
-        tb_name = game["team_b"]
-        if ta_name not in all_teams or tb_name not in all_teams:
-            # Fall back to team_b (already in main bracket)
-            winners[game["slot"]] = tb_name
-            continue
-        ta = all_teams[ta_name]
-        tb = all_teams[tb_name]
-        lp_a = latent_powers.get(ta_name, 0.0) if latent_powers else 0.0
-        lp_b = latent_powers.get(tb_name, 0.0) if latent_powers else 0.0
-        prob, var, _ = compute_matchup_prob(ta, tb, cfg, cache, lp_a, lp_b)
-        winner_team = ta if simulate_game(prob, var, rng, cfg.sampling) else tb
-        winners[game["slot"]] = winner_team.name
-
-    return winners
-
-
-def run_simulation_with_first_four(
-    raw_teams: Dict,
-    cfg: Optional["SimulationConfig"] = None,
-) -> "SimulationResults":
-    """
-    Full 68-team simulation: simulate First Four first, then run main bracket.
-    First Four winners replace the placeholder teams for their slots.
-    """
-    if cfg is None:
-        cfg = SimulationConfig()
-
-    try:
-        from data.teams_2026 import FIRST_FOUR_GAMES, FIRST_FOUR_TEAMS, TEAMS_2026_WITH_FIRST_FOUR
-        has_first_four = True
-    except ImportError:
-        has_first_four = False
-
-    if not has_first_four:
-        return run_simulation(raw_teams, cfg)
-
-    VALID = {f.name for f in Team.__dataclass_fields__.values()}
-
-    # Build all 68 teams
-    all_raw = {**raw_teams}
-    for name, data in FIRST_FOUR_TEAMS.items():
-        if name not in all_raw:
-            all_raw[name] = data
-
-    teams_68: Dict[str, Team] = {}
-    for name, data in all_raw.items():
-        clean = {k: v for k, v in data.items() if k in VALID}
-        teams_68[name] = Team(name=name, **clean)
-
-    all_names = list(teams_68.keys())
-    n = cfg.n_sims
-
-    # Counters for all 68 teams
-    won_ff_game: Dict[str, int] = {t: 0 for t in all_names}  # won First Four
-    won_r64:     Dict[str, int] = {t: 0 for t in all_names}
-    won_r32:     Dict[str, int] = {t: 0 for t in all_names}
-    won_s16:     Dict[str, int] = {t: 0 for t in all_names}
-    won_e8:      Dict[str, int] = {t: 0 for t in all_names}  # won S16 (reached Elite Eight)
-    won_f4:      Dict[str, int] = {t: 0 for t in all_names}
-    won_ncg:     Dict[str, int] = {t: 0 for t in all_names}
-    in_title:    Dict[str, int] = {t: 0 for t in all_names}
-
-    cache: Dict = {}
-    rng = np.random.default_rng(seed=2026)
-
-    def latent_sigma(t: Team) -> float:
-        base = cfg.latent_sigma
-        return base + base * 0.3 * (t.seed / 16)
-
-    # Slot → which team currently occupies it in TEAMS_2026
-    slot_to_current = {game["slot"]: game["team_b"] for game in FIRST_FOUR_GAMES}
-
-    for _ in range(n):
-        # Draw latent forms for all 68 teams
-        latent: Dict[str, float] = {}
-        if cfg.latent_sigma > 0:
-            for name, t in teams_68.items():
-                latent[name] = float(rng.normal(0, latent_sigma(t)))
-
-        # Step 1: simulate First Four
-        ff_winners: Dict[str, str] = {}
-        for game in FIRST_FOUR_GAMES:
-            ta = teams_68[game["team_a"]]
-            tb = teams_68[game["team_b"]]
-            lp_a = latent.get(ta.name, 0.0)
-            lp_b = latent.get(tb.name, 0.0)
-            prob, var, _ = compute_matchup_prob(ta, tb, cfg, cache, lp_a, lp_b)
-            winner = ta if simulate_game(prob, var, rng, cfg.sampling) else tb
-            ff_winners[game["slot"]] = winner.name
-            won_ff_game[winner.name] += 1
-
-        # Step 2: build main bracket, substituting First Four winners
-        # Swap out the placeholder with the actual winner
-        sim_teams = dict(raw_teams)  # start from 64-team bracket
-        for game in FIRST_FOUR_GAMES:
-            slot     = game["slot"]
-            winner   = ff_winners[slot]
-            loser_placeholder = slot_to_current[slot]  # who was in the 64-team bracket
-            if winner != loser_placeholder:
-                # Replace the placeholder with the actual winner's data
-                sim_teams.pop(loser_placeholder, None)
-                sim_teams[winner] = all_raw[winner]
-
-        # Rebuild Team objects for this sim's 64
-        sim_team_objs: Dict[str, Team] = {}
-        for name, data in sim_teams.items():
-            clean = {k: v for k, v in data.items() if k in VALID}
-            sim_team_objs[name] = Team(name=name, **clean)
-
-        # Step 3: simulate the main bracket
-        regional_brackets: Dict[str, List[Team]] = {}
-        for region in REGIONS:
-            seed_map = {t.seed: t for t in sim_team_objs.values() if t.region == region}
-            regional_brackets[region] = build_region_bracket(seed_map)
-
-        region_champs: Dict[str, Team] = {}
-        for region in REGIONS:
-            bracket = regional_brackets[region]
-            rw, champ_name = simulate_region(bracket, cfg, rng, cache, latent)
-            for t in rw.get("r32", []): won_r64[t] += 1
-            for t in rw.get("s16", []): won_r32[t] += 1
-            for t in rw.get("e8",  []): won_s16[t] += 1
-            for t in rw.get("champ", []): won_e8[t] += 1
-            region_champs[region] = sim_team_objs[champ_name]
-
-        f4_e, f4_m, f4_w, f4_s, sf1, sf2, champion = simulate_final_four(region_champs, cfg, rng, cache, latent)
-        for f4_team in [f4_e, f4_m, f4_w, f4_s]:
-            won_f4[f4_team] += 1
-        in_title[sf1]     += 1
-        in_title[sf2]     += 1
-        won_ncg[champion] += 1
-
-    def pct(d: Dict[str, int]) -> Dict[str, float]:
-        return dict(sorted(
-            {k: round(v/n*100, 2) for k,v in d.items() if v > 0}.items(),
-            key=lambda x: x[1], reverse=True
-        ))
-
-    # Build predicted bracket using base 64-team bracket for display
-    VALID64 = {f.name for f in Team.__dataclass_fields__.values()}
-    base_teams = {}
-    for name, data in raw_teams.items():
-        clean = {k: v for k, v in data.items() if k in VALID64}
-        base_teams[name] = Team(name=name, **clean)
-
-    base_cache: Dict = {}
-    predicted: Dict[str, List[List[Dict]]] = {}
-    for region in REGIONS:
-        seed_map = {t.seed: t for t in base_teams.values() if t.region == region}
-        bracket  = build_region_bracket(seed_map)
-        predicted[region] = predict_bracket_greedy(bracket, cfg, base_cache)
-
-    upsets = build_upset_watch(
-        {r: build_region_bracket({t.seed: t for t in base_teams.values() if t.region == r})
-         for r in REGIONS},
-        cfg, base_cache
-    )
-
-    mprobs = {f"{k[0]} vs {k[1]}": round(v[0]*100, 1)
-              for k, v in {**cache, **base_cache}.items() if isinstance(v, tuple)}
-
-    gm = _get_game_model()
-    model_used = "calibrated_ml_stack" if gm and gm.is_fitted else "fallback_blend"
-
-    # Add First Four win pcts to result
-    ff_pcts = pct(won_ff_game)
-
-    result = SimulationResults(
-        champion_pct      = pct(won_ncg),
-        final_four_pct    = pct(won_f4),
-        elite_eight_pct   = pct(won_s16),
-        sweet_sixteen_pct = pct(won_r32),
-        round_of_32_pct   = pct(won_r64),
-        title_game_pct    = pct(in_title),
-        predicted_bracket = predicted,
-        upset_watch       = upsets,
-        matchup_probs     = mprobs,
-        n_sims            = n,
-        model_used        = model_used,
-    )
-    # Attach First Four data as extra attribute
-    object.__setattr__(result, 'first_four_pct', ff_pcts) if False else None
-    result.__dict__['first_four_pct'] = ff_pcts
-    return result

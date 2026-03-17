@@ -21,6 +21,9 @@ Automated tests:
   - calibration artifact shape
   - no negative variances
   - probability range checks
+
+This file is a command-line entrypoint for offline experimentation and report
+generation. It is not part of the runtime API path.
 """
 import sys, os, json, time, hashlib, argparse
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,7 +33,10 @@ import pandas as pd
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import warnings
-warnings.filterwarnings("ignore")
+from sklearn.exceptions import ConvergenceWarning
+warnings.filterwarnings("ignore", category=FutureWarning, module="sklearn")
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
 BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARTIFACTS    = os.path.join(BASE_DIR, "artifacts")

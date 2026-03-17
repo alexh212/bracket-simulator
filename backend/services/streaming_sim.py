@@ -4,12 +4,15 @@ Each event contains current win counts so the frontend can update live.
 """
 import numpy as np
 import time
+import logging
 from typing import Dict, Generator, Optional
 from services.simulation import (
     Team, SimulationConfig, build_region_bracket, build_upset_watch,
     compute_matchup_prob, simulate_game,
     _get_game_model, REGIONS, R64_ORDER
 )
+
+logger = logging.getLogger("bracket_api")
 
 def _simulate_scores(prob_a: float, a_wins: bool) -> tuple:
     """Generate scores consistent with who actually won."""
@@ -49,7 +52,8 @@ def run_streaming_simulation(
             if name not in all_raw:
                 all_raw[name] = data
         has_ff = True
-    except Exception:
+    except ImportError:
+        logger.exception("Failed to import First Four data")
         all_raw = raw_teams
         has_ff = False
         FIRST_FOUR_GAMES = []
@@ -132,7 +136,7 @@ def run_streaming_simulation(
                     winner = tb
                 else:
                     if stochastic:
-                        winner = ta if simulate_game(prob, var, rng, cfg.sampling) else tb
+                        winner = ta if simulate_game(prob, var, rng) else tb
                     else:
                         winner = ta if prob >= 0.5 else tb
                 next_round.append(winner)
@@ -150,6 +154,7 @@ def run_streaming_simulation(
                         "volatility": round(var * 100, 1),
                         "breakdown": bd,
                         "forced_pick": forced_name in (ta.name, tb.name),
+                        "score_note": "Synthetic score estimate for presentation only.",
                     })
             round_winners[label] = winners
             cur = next_round
@@ -174,7 +179,7 @@ def run_streaming_simulation(
                     p, v, _ = compute_matchup_prob(ta, tb, cfg, cache,
                                                    latent.get(ta.name, 0),
                                                    latent.get(tb.name, 0))
-                    w = ta if simulate_game(p, v, rng, cfg.sampling) else tb
+                    w = ta if simulate_game(p, v, rng) else tb
                     ff_winners[game["slot"]] = w.name
                     won_ff[w.name] += 1
 
@@ -221,7 +226,7 @@ def run_streaming_simulation(
         elif forced_sf1 == m.name:
             sf1 = m
         else:
-            sf1 = e if simulate_game(p1, v1, rng, cfg.sampling) else m
+            sf1 = e if simulate_game(p1, v1, rng) else m
 
         p2, v2, _ = compute_matchup_prob(w, s, cfg, cache, latent.get(w.name, 0.0), latent.get(s.name, 0.0))
         forced_sf2 = forced.get("FinalFour:0:1")
@@ -230,7 +235,7 @@ def run_streaming_simulation(
         elif forced_sf2 == s.name:
             sf2 = s
         else:
-            sf2 = w if simulate_game(p2, v2, rng, cfg.sampling) else s
+            sf2 = w if simulate_game(p2, v2, rng) else s
 
         p3, v3, _ = compute_matchup_prob(sf1, sf2, cfg, cache, latent.get(sf1.name, 0.0), latent.get(sf2.name, 0.0))
         forced_final = forced.get("FinalFour:1:0")
@@ -239,7 +244,7 @@ def run_streaming_simulation(
         elif forced_final == sf2.name:
             champ_obj = sf2
         else:
-            champ_obj = sf1 if simulate_game(p3, v3, rng, cfg.sampling) else sf2
+            champ_obj = sf1 if simulate_game(p3, v3, rng) else sf2
 
         f4_e, f4_m, f4_w, f4_s, sf1, sf2, champ = e.name, m.name, w.name, s.name, sf1.name, sf2.name, champ_obj.name
         # All four regional champs made the Final Four
