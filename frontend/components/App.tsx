@@ -49,7 +49,7 @@ function SimControls({ running, onRun, assumptionCount, lockedPickCount }: {
   const [nSims, setNSims] = useState(10000);
   const [sigma, setSigma] = useState(0.06);
 
-  const NSIMS_OPTS = [1000,2500,5000,10000,25000];
+  const NSIMS_OPTS = [250,500,1000,2500,5000,10000,25000,50000];
   const nSimsIdx = Math.max(0, NSIMS_OPTS.indexOf(nSims));
   const SIGMA_LABELS: Record<number,string> = {
     0.02:"Low variance (chalky)",
@@ -82,7 +82,7 @@ function SimControls({ running, onRun, assumptionCount, lockedPickCount }: {
           style={{width:"100%",accentColor:ACCENT}}
         />
         <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#a3a3a3",marginTop:4}}>
-          <span>1k</span><span>2.5k</span><span>5k</span><span>10k</span><span>25k</span>
+          <span>250</span><span>500</span><span>1k</span><span>2.5k</span><span>5k</span><span>10k</span><span>25k</span><span>50k</span>
         </div>
         <div style={{fontSize:10,color:"#aaa",marginTop:8,textAlign:"center"}}>
           Est. runtime ~{Math.round(nSims*0.0082)}s
