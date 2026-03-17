@@ -1,74 +1,66 @@
 # Bracket Simulator
 
-March Madness–style bracket simulator: lock first-round picks, run Monte Carlo simulations, and see win probabilities and bracket outcomes.
+March Madness–style bracket simulator: lock picks, run Monte Carlo simulations, adjust team strength assumptions, and explore win probabilities, upset candidates, and bracket outcomes.
 
 Built in ~24 hours. There are some style quirks here and there, but I'm happy with how it came out.
 
 I just wanted to make a good bracket despite not knowing a lot about basketball.
 
+## Features
+
+- **Monte Carlo simulation** — Run 1k–50k full-bracket simulations (R64 through champion) with live SSE streaming
+- **Chalk vs chaos** — Variance slider to tune how predictable or chaotic results are
+- **Lock picks** — Click to lock any game winner; supports up to 64 forced picks
+- **Team assumptions** — Elo deltas (±250) per team to model injuries, form, etc.
+- **First Four** — Play-in games simulated before the main bracket
+- **Upset watch** — R64 upset candidates with probabilities and reasons
+- **Visualizations** — Championship odds, advancement heatmap, upset chart, per-team advancement table
+- **Insights** — Head-to-head analysis, model vs market, region difficulty, seed history, what-if scenarios
+
 ## Data
 
-- Teams 2026  
-  Real 2026 NCAA Tournament field built from Selection Sunday data  
-  (KenPom rankings, betting odds/point spreads, NET rankings, records, conferences)
+- **Teams 2026** — Real 2026 NCAA Tournament field built from Selection Sunday data (KenPom rankings, betting odds/point spreads, NET rankings, records, conferences)
 
-- Historical Games (2005–2024)  
-  NCAA Tournament game logs with:
-  - Efficiency stats  
-  - Elo ratings  
-  - Closing market probabilities  
-  - Derived features  
+- **Historical Games (2005–2024)** — NCAA Tournament game logs with efficiency stats, Elo ratings, closing market probabilities, and derived features
 
-- Modeling  
-  - Features frozen at Selection Sunday (no look-ahead bias)  
-  - Probabilities learned from historical data and applied to current bracket  
+- **Modeling** — Features frozen at Selection Sunday (no look-ahead bias). ML stack (LR, XGBoost, LightGBM, meta-LR) with isotonic calibration, trained on historical data and applied to the current bracket
 
 ## Architecture
 
-- Backend  
-  FastAPI + SSE streaming  
-  ML pipeline (scikit-learn, XGBoost, LightGBM) for game probabilities  
+- **Backend** — FastAPI + SSE streaming. ML pipeline (scikit-learn, XGBoost, LightGBM) for calibrated game probabilities. Rate limiting on simulation and model-log endpoints.
 
-- Frontend  
-  Next.js + React  
-  Bracket UI, lock picks, live simulation progress  
+- **Frontend** — Next.js 14 + React 18. Bracket UI, lock picks, live simulation progress, charts, and insights panels.
 
-- Simulation  
-  - Runs large-scale Monte Carlo simulations  
-  - Outputs:
-    - Predicted bracket  
-    - Champion / Final Four odds  
-    - Upset detection  
+- **Simulation** — Monte Carlo runs with latent team strength draws, matchup caching, and forced picks. Outputs predicted bracket, champion/Final Four odds, and upset detection.
 
 ## Tech Stack
 
-Backend
+**Backend**
 - FastAPI
 - Python 3.12
 - uvicorn
-- scipy
-- pandas
-- scikit-learn
-- xgboost
-- lightgbm
+- scipy, numpy, pandas
+- scikit-learn, xgboost, lightgbm
+- joblib
 
-Frontend
+**Frontend**
 - Next.js 14
-- React
+- React 18
 - TypeScript
-- Tailwind CSS (used for global styles/build pipeline)
+- Tailwind CSS
+- Vitest
 
-Deployment
-- Render for both frontend and backend
+**Deployment**
+- Render (frontend and backend)
 
 ## Live Demo
 
-Frontend: https://bracket-simulator.onrender.com
-API: https://bracketedge-api.onrender.com
+- Frontend: https://bracket-simulator.onrender.com
+- API: https://bracketedge-api.onrender.com
 
 ## Running Locally
 
-Backend
+**Backend**
 
 ```bash
 cd backend
@@ -78,7 +70,7 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8001
 ```
 
-Frontend
+**Frontend**
 
 ```bash
 cd frontend
@@ -87,18 +79,21 @@ npm run dev
 ```
 
 The frontend connects to `http://localhost:8001` by default.
-To override it, set `NEXT_PUBLIC_API_URL`.
 
 ## Environment Variables
 
-Backend
-- None required for local development
+**Backend**
+- `SIM_RATE_LIMIT_MAX_REQUESTS` — Max sim requests per window (default: 6)
+- `SIM_RATE_LIMIT_WINDOW_SEC` — Sim rate limit window in seconds (default: 60)
+- `MODEL_LOG_RATE_LIMIT_MAX_REQUESTS` — Max model-log requests per window (default: 2)
+- `MODEL_LOG_RATE_LIMIT_WINDOW_SEC` — Model-log rate limit window in seconds (default: 300)
+- `ENABLE_MODEL_LOG_REBUILD` — Set to `1`, `true`, or `yes` to allow model log rebuild at runtime
 
-Frontend
-- `NEXT_PUBLIC_API_URL` for pointing the UI at the API
+**Frontend**
+- `NEXT_PUBLIC_API_URL` — API base URL (default: `http://localhost:8001`)
 
 ## Notes
 
-- `backend/models/model_v1_best.pkl` is a runtime artifact used for inference.
-- `backend/reports/*.json` are generated reports and are not required to run the app.
+- `backend/models/model_v1_best.pkl` is the runtime model artifact used for inference.
+- `backend/reports/model_pipeline_results.json` is a generated report; not required to run the app.
 - Render deployment is defined in `render.yaml`.
