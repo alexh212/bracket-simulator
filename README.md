@@ -2,6 +2,12 @@
 
 March Madness–style bracket simulator: lock first-round picks, run Monte Carlo simulations, and see win probabilities and bracket outcomes.
 
+## Data
+
+- **Teams 2026:** Real 2026 NCAA Tournament field, built from Selection Sunday data (KenPom rankings, betting odds/point spreads, NET rankings, records, conferences).
+- **Historical games:** 2005–2024 NCAA Tournament game log with efficiency stats, Elo, closing market probabilities, and derived features.
+- **Modeling:** Features are frozen at Selection Sunday to avoid look-ahead; probabilities are learned from historical data and then applied to the current bracket.
+
 ## Architecture
 
 - **Backend** — FastAPI + SSE streaming; ML pipeline (scikit-learn, XGBoost, etc.) for game probabilities
