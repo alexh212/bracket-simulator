@@ -38,8 +38,8 @@ app.add_middleware(
         "http://127.0.0.1:3000",
     ],
     allow_origin_regex=r"^https://bracket-simulator(?:-[a-z0-9]+)?\.onrender\.com$",
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 _VALID = {f.name for f in Team.__dataclass_fields__.values()}
