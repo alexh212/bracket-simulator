@@ -367,6 +367,7 @@ function InitialPickTree({
                           <Seed n={seed}/>
                           <span style={{flex:1,fontSize:10,fontWeight:locked?700:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
                           {locked && <span style={{fontSize:7,background:"#fff",color:"#111",padding:"1px 4px",borderRadius:3,fontWeight:700,letterSpacing:"0.04em"}}>LOCK</span>}
+                          {locked && <span style={{fontSize:11,color:locked?"#22c55e":"#fff",lineHeight:1}}>✓</span>}
                         </button>
                       );
                     })}

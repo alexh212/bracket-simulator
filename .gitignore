@@ -6,6 +6,7 @@ __pycache__/
 **/__pycache__/
 **/*.pyc
 *.egg-info/
+backend/venv/
 
 # Node / Next.js
 frontend/node_modules/
