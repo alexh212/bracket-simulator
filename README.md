@@ -62,7 +62,7 @@ March Madness–style bracket simulator: lock picks, run Monte Carlo simulations
 cd backend
 python -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn main:app --reload --port 8001
 ```
 
@@ -75,6 +75,27 @@ npm run dev
 ```
 
 The frontend connects to `http://localhost:8001` by default.
+
+## Testing
+
+**Backend**
+
+```bash
+cd backend
+pytest
+```
+
+**Frontend**
+
+```bash
+cd frontend
+npm test
+```
+
+## CI/CD
+
+- GitHub Actions runs backend `pytest`, frontend `vitest`, and a production frontend build on pull requests and pushes to `main`.
+- Render is expected to auto-deploy from the connected GitHub repository after `main` is updated.
 
 ## Environment Variables
 
