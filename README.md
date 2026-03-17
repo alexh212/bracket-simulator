@@ -2,10 +2,6 @@
 
 March Madness–style bracket simulator: lock picks, run Monte Carlo simulations, adjust team strength assumptions, and explore win probabilities, upset candidates, and bracket outcomes.
 
-Built in ~24 hours. There are some style quirks here and there, but I'm happy with how it came out.
-
-I just wanted to make a good bracket despite not knowing a lot about basketball.
-
 ## Features
 
 - **Monte Carlo simulation** — Run 1k–50k full-bracket simulations (R64 through champion) with live SSE streaming
