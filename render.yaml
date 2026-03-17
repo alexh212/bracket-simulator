@@ -1,4 +1,5 @@
 services:
+  # Backend: FastAPI + uvicorn
   - type: web
     name: bracketedge-api
     runtime: python
@@ -8,4 +9,18 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
+    plan: free
+
+  # Frontend: Next.js
+  - type: web
+    name: bracket-simulator
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: NEXT_PUBLIC_API_URL
+        value: https://bracketedge-api.onrender.com
     plan: free
