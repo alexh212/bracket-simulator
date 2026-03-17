@@ -6,8 +6,6 @@ Built in ~24 hours. There are some style quirks here and there, but I'm happy wi
 
 I just wanted to make a good bracket despite not knowing a lot about basketball.
 
----
-
 ## Data
 
 - Teams 2026  
@@ -25,8 +23,6 @@ I just wanted to make a good bracket despite not knowing a lot about basketball.
   - Features frozen at Selection Sunday (no look-ahead bias)  
   - Probabilities learned from historical data and applied to current bracket  
 
----
-
 ## Architecture
 
 - Backend  
@@ -43,8 +39,6 @@ I just wanted to make a good bracket despite not knowing a lot about basketball.
     - Predicted bracket  
     - Champion / Final Four odds  
     - Upset detection  
-
----
 
 ## Tech Stack
 
@@ -68,14 +62,10 @@ Frontend
 Deployment
 - Render  
 
----
-
 ## Live Demo
 
 Frontend: https://bracket-simulator.onrender.com  
 API: https://bracketedge-api.onrender.com  
-
----
 
 ## Running Locally
 
@@ -95,8 +85,6 @@ npm run dev
 
 Frontend connects to http://localhost:8001 by default  
 To override: set NEXT_PUBLIC_API_URL  
-
----
 
 ## Environment Variables
 
