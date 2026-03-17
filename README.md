@@ -51,7 +51,7 @@ March Madness–style bracket simulator: lock picks, run Monte Carlo simulations
 
 ## Live Demo
 
-- Frontend: https://bracket-simulator.onrender.com
+- Frontend: https://bracket-simulator-vq00.onrender.com
 - API: https://bracketedge-api.onrender.com
 
 ## Running Locally
