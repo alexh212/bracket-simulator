@@ -513,7 +513,7 @@ function LiveSimPanel({ sim, logLines }: { sim: SimState; logLines: string[] }) 
               <span style={{fontWeight:600,color:sim.complete?GREEN:"#000"}}>{(progress*100).toFixed(0)}%</span>
             </div>
             <div style={{height:4,background:"#f0f0f0",borderRadius:2,overflow:"hidden"}}>
-              <div style={{height:"100%",width:`${progress*100}%`,background:sim.complete?GREEN:ACCENT,transition:"width 0.4s ease",borderRadius:2}}/>
+              <div className={!sim.complete && sim.done > 0 ? "progress-bar-running" : ""} style={{height:"100%",width:`${progress*100}%`,background:sim.complete?GREEN:ACCENT,transition:"width 0.4s ease",borderRadius:2}}/>
             </div>
           </div>
 
@@ -535,7 +535,7 @@ function LiveSimPanel({ sim, logLines }: { sim: SimState; logLines: string[] }) 
                     </div>
                   </div>
                   <div style={{height:3,background:"#f0f0f0",borderRadius:2,overflow:"hidden"}}>
-                    <div style={{width:`${(p/maxPct)*100}%`,height:"100%",background:i===0?ACCENT:"#ccc",transition:"width 0.5s ease",borderRadius:2}}/>
+                    <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/maxPct)*100}%`,height:"100%",background:i===0?ACCENT:"#ccc",transition:"width 0.5s ease",borderRadius:2}}/>
                   </div>
                 </div>
               ))}
@@ -1028,28 +1028,25 @@ function DataProvenance({ info }: { info: ModelInfo | null }) {
   const inf = info.inference_data;
   const tr = info.training_data;
   const md = info.model_details;
+  const stack = (md?.stack || ["logistic_regression", "xgboost", "lightgbm", "meta_logistic"]).join(" + ");
+  const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderBottom: "1px solid #f1f5f9", fontSize: 12 }}>
+      <span style={{ color: "#64748b", flexShrink: 0 }}>{label}</span>
+      <span style={{ color: "#0f172a", textAlign: "right" }}>{value}</span>
+    </div>
+  );
   return (
-    <div style={{padding:"12px 14px",background:"#fff"}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div style={{border:"1px solid #eee",padding:"8px 10px"}}>
-          <div style={{fontSize:9,letterSpacing:"0.08em",color:"#888",textTransform:"uppercase",marginBottom:3}}>Simulation Data</div>
-          <div style={{fontSize:11,fontWeight:600}}>{inf.dataset} · {inf.season}</div>
-          <div style={{fontSize:10,color:"#777"}}>{inf.teams_in_bracket} tournament teams · freeze {inf.selection_sunday_freeze}</div>
-        </div>
-        <div style={{border:"1px solid #eee",padding:"8px 10px"}}>
-          <div style={{fontSize:9,letterSpacing:"0.08em",color:"#888",textTransform:"uppercase",marginBottom:3}}>Training Window</div>
-          <div style={{fontSize:11,fontWeight:600}}>{tr.season_min}–{tr.season_max} historical tournament games</div>
-          <div style={{fontSize:10,color:"#777"}}>{tr.rows} rows · {tr.recency_weighting}</div>
-        </div>
-      </div>
-      <div style={{marginTop:10,padding:"8px 10px",border:"1px solid #eee"}}>
-        <div style={{fontSize:9,letterSpacing:"0.08em",color:"#888",textTransform:"uppercase",marginBottom:3}}>Model Notes</div>
-        <div style={{fontSize:10,color:"#666"}}>
-          {(md?.stack || ["logistic_regression","xgboost","lightgbm","meta_logistic"]).join(" + ")} · {md?.calibration || "isotonic"} calibration · {md?.core_feature_count ?? "n/a"} core features (+{md?.market_feature_count ?? "n/a"} market/meta).
-        </div>
-        <div style={{fontSize:10,color:"#666",marginTop:2}}>
-          {md?.market_usage || "market features blended at inference"} · {md?.variance_modeling || "latent team-strength variance in sims"}.
-        </div>
+    <div style={{ padding: "14px 16px", background: "#fff" }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "#334155", marginBottom: 10 }}>Data & model</div>
+      <Row label="Bracket" value={<>{inf.dataset} · {inf.season} · {inf.teams_in_bracket} teams</>} />
+      <Row label="Freeze date" value={inf.selection_sunday_freeze} />
+      <Row label="Training" value={<>{tr.season_min}–{tr.season_max} · {tr.rows} rows</>} />
+      <Row label="Recency" value={tr.recency_weighting} />
+      <Row label="Stack" value={stack} />
+      <Row label="Calibration" value={md?.calibration || "isotonic"} />
+      <Row label="Features" value={<>{md?.core_feature_count ?? "—"} core + {md?.market_feature_count ?? "—"} market/meta</>} />
+      <div style={{ paddingTop: 8, fontSize: 11, color: "#64748b", lineHeight: 1.5 }}>
+        {md?.market_usage || "Market features in blend"} · {md?.variance_modeling || "Latent strength variance in sims"}.
       </div>
     </div>
   );
@@ -1196,14 +1193,11 @@ function ModelTrainingOutput() {
   };
 
   return (
-    <div style={{marginTop:10,border:`1px solid ${PANEL_BORDER}`,background:"#fff"}}>
-      <div style={{padding:"8px 10px",borderBottom:`1px solid ${PANEL_DIVIDER}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
-        <div>
-          <div style={{fontSize:9,letterSpacing:"0.08em",textTransform:"uppercase",color:"#888"}}>Model Training Output</div>
-          <div style={{fontSize:10,color:"#666"}}>CV results, benchmark checks, and feature importances.</div>
-        </div>
+    <div style={{marginTop:12,border:`1px solid ${PANEL_DIVIDER}`,borderRadius:8,background:"#fafafa",overflow:"hidden"}}>
+      <div style={{padding:"10px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+        <span style={{fontSize:11,fontWeight:600,color:"#475569"}}>Training log</span>
         {!fetched && !loading && (
-          <button onClick={load} style={{padding:"4px 14px",background:"#000",color:"#fff",border:"none",fontSize:10,fontWeight:600,cursor:"pointer",letterSpacing:"0.06em"}}>LOAD</button>
+          <button onClick={load} style={{padding:"4px 12px",background:"#0f172a",color:"#fff",border:"none",fontSize:10,fontWeight:600,cursor:"pointer",borderRadius:6}}>Load</button>
         )}
       </div>
       {loading&&<div style={{padding:"14px",fontSize:11,color:"#aaa"}}>Running model pipeline (~14s)...</div>}
@@ -1711,32 +1705,13 @@ export default function App() {
   }, []);
   const leaderName = champ?.[0] || "Waiting for simulation";
   const leaderPct = champ ? pct(champ[1]) : "—";
+  const leaderPctNum = champ?.[1] ?? 0;
+  const finalFourTop = top(sim.final_four_pct || {}, 4);
+  const ffMax = finalFourTop[0]?.[1] || 1;
   const lockedCount = Object.keys(forcedPicks).length;
 
   return (
     <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 18px 52px"}}>
-      <style>{`
-        *,*::before,*::after{font-family:'Inter',system-ui,-apple-system,sans-serif}
-        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-        @keyframes fadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:translateY(0)}}
-        input[type=range]{-webkit-appearance:none;appearance:none;height:3px;background:#e0e0e0;border-radius:2px;outline:none;cursor:pointer}
-        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:#111;cursor:pointer}
-        button,input,select,textarea{font-family:'Inter',system-ui,-apple-system,sans-serif}
-        select option{background:#fff;color:#000}
-        code{font-family:'Inter',system-ui,-apple-system,sans-serif}
-        ::-webkit-scrollbar{width:4px;height:4px}
-        ::-webkit-scrollbar-thumb{background:#ddd}
-        .terminal-log::-webkit-scrollbar{display:none}
-        .dashboard-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:14px;align-items:start}
-        .stack{display:grid;gap:12px}
-        .hero-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px}
-        @media (max-width: 1080px){
-          .dashboard-grid{grid-template-columns:1fr}
-          .hero-grid{grid-template-columns:1fr}
-          .insights-rail{position:static !important; top:auto !important}
-        }
-      `}</style>
-
       <div style={{padding:"2px 2px 12px",display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
         <div>
           <div style={{fontSize:10,color:"#9ca3af",letterSpacing:"0.14em",marginBottom:3}}>2026 NCAA TOURNAMENT</div>
@@ -1751,14 +1726,24 @@ export default function App() {
             <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:4,textTransform:"uppercase"}}>{sim.complete?"Projected Champion":"Current Leader"}</div>
             <div style={{fontSize:26,fontWeight:700,lineHeight:1.05}}>{leaderName}</div>
             <div style={{fontSize:12,color:"#6b7280",marginTop:5}}>{leaderPct}</div>
+            {leaderPctNum > 0 && (
+              <div style={{height:3,background:"#f0f0f0",borderRadius:2,overflow:"hidden",marginTop:8}}>
+                <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${Math.min(100, leaderPctNum)}%`,height:"100%",background:sim.complete?GREEN:ACCENT,transition:"width 0.5s ease",borderRadius:2}}/>
+              </div>
+            )}
           </div>
           <div style={{padding:"8px 10px",border:"1px solid #f1f5f9",borderRadius:10}}>
             <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:5,textTransform:"uppercase"}}>Final Four Leaders</div>
-            <div style={{display:"grid",gap:4}}>
-              {top(sim.final_four_pct,4).slice(0,4).map(([t,p])=>(
-                <div key={t} style={{display:"flex",justifyContent:"space-between",fontSize:11}}>
-                  <span style={{fontWeight:500}}>{t}</span>
-                  <span style={{color:"#6b7280"}}>{pct(p)}</span>
+            <div style={{display:"grid",gap:6}}>
+              {finalFourTop.map(([t,p],i)=>(
+                <div key={t}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
+                    <span style={{fontWeight:500}}>{t}</span>
+                    <span style={{color:"#6b7280"}}>{pct(p)}</span>
+                  </div>
+                  <div style={{height:3,background:"#f0f0f0",borderRadius:2,overflow:"hidden"}}>
+                    <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/ffMax)*100}%`,height:"100%",background:i===0?ACCENT:"#ccc",transition:"width 0.5s ease",borderRadius:2}}/>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1863,8 +1848,8 @@ export default function App() {
             </div>
           )}
 
-          <GroupTitle label="Model Details" hint="data provenance and training output" />
-          <Collapse label="Model & Data Details" defaultOpen={false}>
+          <GroupTitle label="Model details" hint="data and training log" />
+          <Collapse label="Data & model" defaultOpen={false}>
             <DataProvenance info={modelInfo}/>
             <ModelTrainingOutput/>
           </Collapse>

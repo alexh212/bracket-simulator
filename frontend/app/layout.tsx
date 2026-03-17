@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BracketEdge — 2026 NCAA Predictions",
+  title: "Bracket Simulator 2026 | NCAA Predictions",
   description: "10,000 Monte Carlo simulations. The bracket the model likes most.",
 };
 
