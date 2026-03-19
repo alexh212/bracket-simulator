@@ -18,6 +18,27 @@ export function createSimulationStreamUrl(cfg: SimRunConfig) {
   return `${API_BASE}/simulate/stream?n_sims=${cfg.n_sims}&emit_every=${Math.max(100, Math.floor(cfg.n_sims / 40))}&latent_sigma=${cfg.latent_sigma}&team_overrides=${encodedOverrides}&forced_picks=${encodedForced}`;
 }
 
+export interface RealGame {
+  region: string;
+  round: number;
+  game_index: number;
+  team_a: string;
+  team_b: string;
+  seed_a: number;
+  seed_b: number;
+  score_a: number;
+  score_b: number;
+  winner: string;
+  status: "final" | "live" | "upcoming";
+}
+
+export interface RealResults {
+  last_updated: string | null;
+  tournament_status: string;
+  games: RealGame[];
+}
+
+export const getResults = () => fetchJson<RealResults>("/results");
 export const getTeams = () => fetchJson<Record<string, any>>("/teams");
 export const getModelInfo = () => fetchJson<ModelInfo>("/model-info");
 export const getModelLog = () => fetchJson<{ log: string }>("/model-log");
@@ -41,21 +62,66 @@ export function getHistoricalComps(teamA: string, teamB: string) {
   return fetchJson<any>(`/comps/${encodeURIComponent(teamA)}/${encodeURIComponent(teamB)}`);
 }
 
+export interface WhatIfScenario {
+  label: string;
+  desc: string;
+  params: Record<string, any>;
+}
+
+export function buildWhatIfScenarios(teamA: string, teamB: string): WhatIfScenario[] {
+  return [
+    {
+      label: "Baseline",
+      desc: "Current ratings, no adjustments",
+      params: { target: "a", injury_factor: 1.0 },
+    },
+    {
+      label: `${teamA} role player out`,
+      desc: "Rotation player injured — slightly reduced offense & power rating",
+      params: { target: "a", injury_factor: 0.93, delta_kenpom_adj_off: -1.0 },
+    },
+    {
+      label: `${teamA} star player out`,
+      desc: "Best player unavailable — major drop in efficiency, shooting, and power",
+      params: { target: "a", injury_factor: 0.80, delta_kenpom_adj_off: -3.5, delta_efg_pct: -0.02 },
+    },
+    {
+      label: `${teamB} key player out`,
+      desc: "Opponent loses a starter — their offense and power rating take a hit",
+      params: { target: "b", injury_factor: 0.88, delta_kenpom_adj_off: -2.0 },
+    },
+    {
+      label: `${teamA} hot streak`,
+      desc: "Playing well above season average — boosted offense, Elo, and efficiency",
+      params: { target: "a", delta_kenpom_adj_off: 3.0, delta_elo_current: 60, delta_efg_pct: 0.015 },
+    },
+    {
+      label: "Grind-it-out pace",
+      desc: "Game played at 62 possessions — favors disciplined defenses, hurts fast teams",
+      params: { target: "a", possessions_per_game: 62.0 },
+    },
+    {
+      label: `${teamA} cold shooting`,
+      desc: "Off night from three — reduced eFG% and three-point rate",
+      params: { target: "a", delta_efg_pct: -0.03, delta_three_pt_rate: -0.04 },
+    },
+  ];
+}
+
 export function getWhatIf(teamA: string, teamB: string) {
+  const scenarios = buildWhatIfScenarios(teamA, teamB);
   return fetchJson<{ results: any[] }>("/whatif", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       team_a: teamA,
       team_b: teamB,
-      scenarios: [
-        { label: "Baseline", target: "a", injury_factor: 1.0 },
-        { label: `${teamA} minor inj`, target: "a", injury_factor: 0.93 },
-        { label: `${teamA} major inj`, target: "a", injury_factor: 0.82 },
-        { label: `${teamB} injured`, target: "b", injury_factor: 0.9 },
-        { label: "Hot streak", target: "a", form_score: 8.0 },
-        { label: "Slow tempo", target: "a", possessions_per_game: 62.0 },
-      ],
+      scenarios: scenarios.map((s) => ({ label: s.label, ...s.params })),
     }),
-  });
+  }).then((data) => ({
+    results: (data.results || []).map((r: any, i: number) => ({
+      ...r,
+      desc: scenarios[i]?.desc || "",
+    })),
+  }));
 }

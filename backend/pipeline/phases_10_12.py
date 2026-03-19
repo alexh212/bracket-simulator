@@ -177,6 +177,17 @@ def ensemble_disagreement(
 
 # ── 10c. Causal what-if tools ─────────────────────────────────────────────────
 
+def _apply_scenario_fields(target_dict: Dict, scen_fields: Dict) -> None:
+    """Apply scenario fields to a team dict, supporting delta_ prefix for
+    relative adjustments (e.g. delta_kenpom_adj_off: 3.0 adds 3.0)."""
+    for key, value in scen_fields.items():
+        if key.startswith("delta_"):
+            real_key = key[6:]
+            target_dict[real_key] = target_dict.get(real_key, 0) + value
+        else:
+            target_dict[key] = value
+
+
 def what_if_analysis(
     team_a_dict: Dict,
     team_b_dict: Dict,
@@ -185,18 +196,20 @@ def what_if_analysis(
     """
     Causal what-if: what changes when we modify one input?
     Each scenario is a dict of {field: new_value} for team_a or team_b.
+    Fields prefixed with delta_ are treated as relative adjustments.
 
     Examples:
-      {"target": "a", "injury_factor": 1.0}    ← injury removed
-      {"target": "b", "market_only": True}      ← market only
-      {"target": "a", "possessions_per_game": 60.0}  ← tempo forced slower
-      {"target": "a", "three_pt_rate": 0.25}    ← 3pt variance reduced
+      {"target": "a", "injury_factor": 1.0}          ← injury removed
+      {"target": "a", "possessions_per_game": 60.0}   ← tempo forced slower
+      {"target": "a", "delta_kenpom_adj_off": 3.0}    ← hot streak (+3 adj off)
     """
     from pipeline.calibrated_game_model import get_game_model
 
     gm = get_game_model()
     base_a = dict(team_a_dict)
     base_b = dict(team_b_dict)
+
+    gm.clear_cache()
     base_p = gm.predict(base_a, base_b)
 
     results = []
@@ -208,13 +221,14 @@ def what_if_analysis(
         label  = scen.pop("label", str(scen))
 
         if target == "a":
-            a_mod.update(scen)
+            _apply_scenario_fields(a_mod, scen)
         elif target == "b":
-            b_mod.update(scen)
+            _apply_scenario_fields(b_mod, scen)
         elif target == "both":
-            a_mod.update({k:v for k,v in scen.items() if k.endswith("_a") or not k.endswith("_b")})
-            b_mod.update({k:v for k,v in scen.items() if k.endswith("_b")})
+            _apply_scenario_fields(a_mod, {k:v for k,v in scen.items() if k.endswith("_a") or not k.endswith("_b")})
+            _apply_scenario_fields(b_mod, {k:v for k,v in scen.items() if k.endswith("_b")})
 
+        gm.clear_cache()
         try:
             new_p   = gm.predict(a_mod, b_mod)
         except Exception:
@@ -228,6 +242,7 @@ def what_if_analysis(
             "direction": "up" if new_p > base_p else "down" if new_p < base_p else "same",
         })
 
+    gm.clear_cache()
     return results
 
 

@@ -17,6 +17,7 @@ logger = logging.getLogger("bracket_api")
 
 ROOT_DIR = Path(__file__).resolve().parent
 REPORT_PATH = ROOT_DIR / "reports" / "model_pipeline_results.json"
+RESULTS_PATH = ROOT_DIR / "data" / "real_results.json"
 
 MAX_N_SIMS = 50_000
 MAX_JSON_PARAM_LEN = 10_000
@@ -257,7 +258,8 @@ class WhatIfRequest(BaseModel):
             if label and (not isinstance(label, str) or len(label) > 80):
                 raise ValueError("Scenario label must be a short string")
 
-            unknown_fields = set(scenario) - {"label", "target"} - _NUMERIC_SCENARIO_FIELDS
+            _delta_allowed = {f"delta_{f}" for f in _NUMERIC_SCENARIO_FIELDS}
+            unknown_fields = set(scenario) - {"label", "target"} - _NUMERIC_SCENARIO_FIELDS - _delta_allowed
             if unknown_fields:
                 bad = ", ".join(sorted(unknown_fields))
                 raise ValueError(f"Unsupported scenario fields: {bad}")
@@ -281,6 +283,15 @@ class WhatIfRequest(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok", "teams": len(CLEAN)}
+
+@app.get("/results")
+def results():
+    if not RESULTS_PATH.exists():
+        return {"last_updated": None, "tournament_status": "Not started", "games": []}
+    try:
+        return json.loads(RESULTS_PATH.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {"last_updated": None, "tournament_status": "Error loading results", "games": []}
 
 @app.get("/teams")
 def teams():

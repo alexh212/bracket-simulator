@@ -110,4 +110,19 @@ select option {
   }
 }
 
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker-scroll var(--ticker-duration, 30s) linear infinite;
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
 ::selection { background: rgba(0,0,0,0.1); }

@@ -1,7 +1,9 @@
 "use client";
-import { useEffect, useRef, useState, memo } from "react";
+import { useCallback, useEffect, useRef, useState, memo } from "react";
 
 import type { ForcedPicks, Game, Resolved, SimRunConfig, SimState, TeamOverrides } from "@/components/app/types";
+import type { RealGame } from "@/lib/api";
+import { getResults } from "@/lib/api";
 import {
   ACCENT,
   ACCENT_SOFT,
@@ -28,6 +30,7 @@ import {
 } from "@/components/app/shared";
 import {
   AnalysisSection,
+  BracketValuePicks,
   DataProvenance,
   DiagnosticsSection,
   FirstFourSection,
@@ -38,6 +41,7 @@ import {
   TeamProbabilityMath,
 } from "@/components/app/insights";
 import { useSimulation } from "@/components/app/useSimulation";
+import Ticker from "@/components/app/ticker";
 
 // ── Sim Controls ──────────────────────────────────────────────────────────────
 function SimControls({ running, onRun, assumptionCount, lockedPickCount }: {
@@ -63,14 +67,15 @@ function SimControls({ running, onRun, assumptionCount, lockedPickCount }: {
     <div style={{padding:"18px 20px 20px",maxWidth:760,margin:"0 auto",display:"flex",flexDirection:"column",gap:16}}>
       <div style={{textAlign:"center",marginBottom:4}}>
         <div style={{fontSize:11,color:"#555",lineHeight:1.6}}>
-          Run the full bracket thousands of times — every game from first round to the title.
-          <br />
-          Based on ML (LR, XGBoost, LightGBM) and calibrated stats from 77 R64 games, 2005–2025.
+          Monte Carlo simulation — plays out every game from the Round of 64 to the National Championship thousands of times. Each run uses randomized team-strength perturbations so no two brackets are the same. Percentages reflect the share of runs where each outcome occurred.
+        </div>
+        <div style={{fontSize:10,color:"#999",marginTop:4}}>
+          Model: Logistic Regression + XGBoost + LightGBM ensemble with isotonic calibration, trained on 77 first-round games (2005–2025).
         </div>
       </div>
 
       <div>
-        <div style={{fontSize:10,letterSpacing:"0.1em",color:"#888",textTransform:"uppercase",textAlign:"center"}}>Simulations</div>
+        <div style={{fontSize:10,letterSpacing:"0.1em",color:"#888",textTransform:"uppercase",textAlign:"center"}}>Monte Carlo Runs</div>
         <div style={{fontSize:24,fontWeight:700,color:"#111",textAlign:"center",margin:"4px 0 8px"}}>{nSims.toLocaleString()}</div>
         <input
           type="range"
@@ -91,23 +96,26 @@ function SimControls({ running, onRun, assumptionCount, lockedPickCount }: {
 
       <div>
         <div style={{fontSize:10,letterSpacing:"0.1em",color:"#888",textTransform:"uppercase",textAlign:"center"}}>
-          Tournament variance: <span style={{color:"#111"}}>{SIGMA_LABELS[sigma]||sigma}</span>
+          Tournament Variance: <span style={{color:"#111"}}>{SIGMA_LABELS[sigma]||sigma}</span>
+        </div>
+        <div style={{fontSize:9,color:"#bbb",textAlign:"center",marginTop:4,lineHeight:1.5}}>
+          How much random game-day swing each team gets per run. Low = favorites win more (chalky). High = more upsets (chaos).
         </div>
         <input type="range" min={0.02} max={0.12} step={0.01} value={sigma}
           onChange={e=>setSigma(parseFloat(e.target.value))}
           style={{width:"100%",accentColor:ACCENT,marginTop:8}}
         />
         <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"#bbb",marginTop:4}}>
-          <span>chalk</span><span>chaos</span>
+          <span>favorites dominate</span><span>upsets galore</span>
         </div>
       </div>
 
       <div style={{display:"flex",justifyContent:"center",gap:12,flexWrap:"wrap",fontSize:10,color:"#999"}}>
         <span>Variance: <span style={{color:"#444",fontWeight:500}}>{SIGMA_LABELS[sigma]||sigma}</span></span>
         <span style={{color:"#ddd"}}>·</span>
-        <span>{assumptionCount} assumption{assumptionCount!==1?"s":""} active</span>
+        <span title="Elo adjustments applied before simulation — positive boosts a team, negative weakens them">{assumptionCount} assumption{assumptionCount!==1?"s":""} active</span>
         <span style={{color:"#ddd"}}>·</span>
-        <span>{lockedPickCount} pick{lockedPickCount!==1?"s":""} locked</span>
+        <span title="Locked games always use your pick — all other games are simulated normally">{lockedPickCount} pick{lockedPickCount!==1?"s":""} locked</span>
       </div>
 
       <div style={{display:"flex",justifyContent:"center",paddingTop:4}}>
@@ -160,7 +168,7 @@ function AssumptionsPanel({
   return (
     <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
       <div style={{padding:PAD_HEADER,borderBottom:`1px solid ${BORDER_SUBTLE}`,background:BG_HEADER}}>
-        <div style={{fontSize:10,color:"#666"}}>Apply team strength deltas (Elo points) before simulation. Positive favors the team, negative fades it.</div>
+        <div style={{fontSize:10,color:"#666"}}>Adjust a team&apos;s strength before simulating. Values are Elo points — roughly +50 Elo ≈ +2% win probability in a typical matchup. Positive boosts the team, negative weakens them.</div>
       </div>
       <div style={{padding:"10px 14px",display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:10,alignItems:"end",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
         <div>
@@ -213,14 +221,28 @@ function InitialPickTree({
   forcedPicks,
   onTogglePick,
   onClearPicks,
+  realResults,
 }: {
   teamsCatalog: Record<string, any>;
   sim: SimState;
   forcedPicks: ForcedPicks;
   onTogglePick: (key: string, winner: string) => void;
   onClearPicks: () => void;
+  realResults: RealGame[];
 }) {
   const [activeRegion, setActiveRegion] = useState<(typeof REGIONS)[number]>("East");
+
+  const realMap: Record<string, string> = {};
+  for (const g of realResults) {
+    if (g.status === "final" && g.winner) {
+      realMap[`${g.region}:${g.round}:${g.game_index}`] = g.winner;
+    }
+  }
+
+  const getSimWinner = (region: string, gi: number): string | null => {
+    const game = sim.predicted_bracket[region]?.[0]?.[gi];
+    return game?.winner || null;
+  };
 
   const buildRegionRound0 = (region: string) => {
     const seedToTeam: Record<number, string> = {};
@@ -266,26 +288,41 @@ function InitialPickTree({
                       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{g.teamB}</span>
                       <span style={{fontWeight:600,color:"#555"}}>({g.seedB})</span>
                     </div>
-                    {[{name:g.teamA,seed:g.seedA},{name:g.teamB,seed:g.seedB}].map(({name, seed}, ti) => {
-                      const locked = forcedPicks[key] === name;
-                      return (
-                        <button
-                          key={name}
-                          onClick={()=>onTogglePick(key, name)}
-                          style={{
-                            width:"100%",display:"flex",alignItems:"center",gap:6,padding:"5px 8px",
-                            border:"none",borderTop:ti===1?`1px solid ${BORDER_INNER}`:"none",
-                            background:locked?"#111":"#fff",
-                            color:locked?"#fff":"#111",cursor:"pointer",textAlign:"left"
-                          }}
-                        >
-                          <Seed n={seed}/>
-                          <span style={{flex:1,fontSize:10,fontWeight:locked?700:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
-                          {locked && <span style={{fontSize:7,background:"#fff",color:"#111",padding:"1px 4px",borderRadius:14,fontWeight:700,letterSpacing:"0.04em"}}>LOCK</span>}
-                          {locked && <span style={{fontSize:11,color:locked?"#22c55e":"#fff",lineHeight:1}}>✓</span>}
-                        </button>
-                      );
-                    })}
+                    {(() => {
+                      const simWinner = getSimWinner(region, idx);
+                      const realWinner = realMap[key];
+                      const hasLock = !!forcedPicks[key];
+                      return [{name:g.teamA,seed:g.seedA},{name:g.teamB,seed:g.seedB}].map(({name, seed}, ti) => {
+                        const locked = forcedPicks[key] === name;
+                        const isSimPick = !hasLock && simWinner === name;
+                        const isRealWinner = realWinner === name;
+                        const simDisagrees = !hasLock && simWinner && realWinner && simWinner !== realWinner;
+                        return (
+                          <button
+                            key={name}
+                            onClick={()=>onTogglePick(key, name)}
+                            style={{
+                              width:"100%",display:"flex",alignItems:"center",gap:6,padding:"5px 8px",
+                              border:"none",borderTop:ti===1?`1px solid ${BORDER_INNER}`:"none",
+                              background:locked?"#111":isSimPick?"#f8fafc":"#fff",
+                              color:locked?"#fff":"#111",cursor:"pointer",textAlign:"left"
+                            }}
+                          >
+                            <Seed n={seed}/>
+                            <span style={{flex:1,fontSize:10,fontWeight:locked||isSimPick?700:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
+                            {locked && <span style={{fontSize:7,background:"#fff",color:"#111",padding:"1px 4px",borderRadius:14,fontWeight:700,letterSpacing:"0.04em"}}>LOCK</span>}
+                            {locked && <span style={{fontSize:11,color:"#22c55e",lineHeight:1}}>✓</span>}
+                            {isSimPick && <span style={{fontSize:7,color:"#9ca3af",padding:"1px 4px",border:"1px solid #e5e7eb",borderRadius:14,fontWeight:600,letterSpacing:"0.04em"}}>SIM</span>}
+                            {!hasLock && isRealWinner && !isSimPick && simDisagrees && (
+                              <span style={{fontSize:7,color:"#d97706",fontWeight:600,letterSpacing:"0.04em"}} title="Real result differs from sim prediction">REAL</span>
+                            )}
+                            {!hasLock && isRealWinner && isSimPick && (
+                              <span style={{fontSize:7,color:"#16a34a",fontWeight:600}} title="Sim correctly predicted this result">✓</span>
+                            )}
+                          </button>
+                        );
+                      });
+                    })()}
                   </div>
                 );
               }
@@ -395,7 +432,7 @@ function InitialPickTree({
   return (
     <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
       <div style={{padding:PAD_HEADER,borderBottom:`1px solid ${BORDER_SUBTLE}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG_HEADER}}>
-        <span style={{fontSize:10,color:"#444",letterSpacing:"0.06em"}}>Lock first-round picks, then run the sim.</span>
+        <span style={{fontSize:10,color:"#444",letterSpacing:"0.06em"}}>Click to lock a pick. <span style={{color:"#999"}}>SIM = model&apos;s predicted winner · LOCK = your pick · Re-run to apply changes</span></span>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:10,color:"#666"}}>{count} locked</span>
           {count > 0 && (
@@ -428,18 +465,32 @@ function InitialPickTree({
       <div style={{padding:10}}>
         <RegionPanel region={activeRegion}/>
       </div>
-      <div style={{borderTop:`1px solid ${BORDER_SUBTLE}`,padding:"10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
-          <div style={{padding:"7px 10px",borderBottom:`1px solid ${BORDER_INNER}`,fontSize:9,color:"#777",letterSpacing:"0.08em",textTransform:"uppercase"}}>Final Four Outlook</div>
-          <div style={{padding:8,display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>
-            <div key="sf1">{renderGameCard(sf1, sf1Prob, sf1Winner)}</div>
-            <div key="sf2">{renderGameCard(sf2, sf2Prob, sf2Winner)}</div>
-          </div>
+      <div style={{borderTop:`1px solid ${BORDER_SUBTLE}`,padding:"10px"}}>
+        <div style={{fontSize:9,color:"#999",marginBottom:8,textAlign:"center",letterSpacing:"0.06em"}}>
+          Projected bracket path based on the most likely winner of each game
         </div>
-        <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
-          <div style={{padding:"7px 10px",borderBottom:`1px solid ${BORDER_INNER}`,fontSize:9,color:"#777",letterSpacing:"0.08em",textTransform:"uppercase"}}>Title Game Outlook</div>
-          <div style={{padding:8,display:"grid",gridTemplateColumns:"1fr",gap:10}}>
-            <div key="title">{renderGameCard(titleGame, titleProb, titleWinner)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
+          <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff",borderRadius:14,overflow:"hidden"}}>
+            <div style={{padding:"6px 10px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER,fontSize:9,color:"#777",letterSpacing:"0.08em",textTransform:"uppercase",textAlign:"center"}}>
+              Semifinal 1 — <span style={{color:"#444",fontWeight:600}}>East</span> vs <span style={{color:"#444",fontWeight:600}}>Midwest</span>
+            </div>
+            <div style={{padding:8}}>{renderGameCard(sf1, sf1Prob, sf1Winner)}</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"0 4px"}}>
+            <div style={{width:1,height:20,background:BORDER_OUTER}}/>
+            <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff",borderRadius:14,overflow:"hidden",minWidth:160}}>
+              <div style={{padding:"6px 10px",borderBottom:`1px solid ${BORDER_INNER}`,background:"#111",fontSize:9,color:"#fff",letterSpacing:"0.08em",textTransform:"uppercase",textAlign:"center",fontWeight:700}}>
+                National Championship
+              </div>
+              <div style={{padding:8}}>{renderGameCard(titleGame, titleProb, titleWinner)}</div>
+            </div>
+            <div style={{width:1,height:20,background:BORDER_OUTER}}/>
+          </div>
+          <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff",borderRadius:14,overflow:"hidden"}}>
+            <div style={{padding:"6px 10px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER,fontSize:9,color:"#777",letterSpacing:"0.08em",textTransform:"uppercase",textAlign:"center"}}>
+              Semifinal 2 — <span style={{color:"#444",fontWeight:600}}>West</span> vs <span style={{color:"#444",fontWeight:600}}>South</span>
+            </div>
+            <div style={{padding:8}}>{renderGameCard(sf2, sf2Prob, sf2Winner)}</div>
           </div>
         </div>
       </div>
@@ -580,18 +631,21 @@ function AdvancementTable({ sim }: { sim: SimState }) {
 
   return (
     <div style={{overflowX:"auto",border:`1px solid ${BORDER_OUTER}`,background:"#fff"}}>
+      <div style={{padding:"8px 12px",borderBottom:`1px solid ${BORDER_SUBTLE}`,background:BG_HEADER,fontSize:10,color:"#666"}}>
+        % of Monte Carlo runs where each team reached each round. Hover column headers for details.
+      </div>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
         <thead>
           <tr style={{borderBottom:"2px solid #000",background:"#000"}}>
             <th style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600}}>RK</th>
             <th style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600}}>SEED</th>
             <th style={{padding:"8px 10px",textAlign:"left",color:"#fff",fontSize:10,letterSpacing:"0.06em",fontWeight:600}}>TEAM</th>
-            <th style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600}}>R32</th>
-            <th style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600}}>S16</th>
-            <th style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600}}>E8</th>
-            <th style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600}}>F4</th>
-            <th style={{padding:"8px 8px",textAlign:"center",color:"#aaa",fontSize:9,letterSpacing:"0.08em",fontWeight:600}}>FINAL</th>
-            <th style={{padding:"8px 10px",textAlign:"center",color:GREEN,fontSize:9,letterSpacing:"0.08em",fontWeight:600}}>CHAMP</th>
+            <th title="% chance to reach Round of 32" style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>R32</th>
+            <th title="% chance to reach Sweet 16" style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>S16</th>
+            <th title="% chance to reach Elite Eight" style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>E8</th>
+            <th title="% chance to reach Final Four" style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>F4</th>
+            <th title="% chance to reach Championship Game" style={{padding:"8px 8px",textAlign:"center",color:"#aaa",fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>FINAL</th>
+            <th title="% chance to win the National Championship" style={{padding:"8px 10px",textAlign:"center",color:GREEN,fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>CHAMP</th>
           </tr>
         </thead>
         <tbody>
@@ -783,7 +837,7 @@ function BracketGrid({
   return (
     <div style={{border:`1px solid ${BORDER_OUTER}`,overflowX:"auto",background:"#fff"}}>
       <div style={{padding:"6px 10px",background:BG_ALT,borderBottom:`1px solid ${BORDER_SUBTLE}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-        <span style={{fontSize:9,color:"#666",letterSpacing:"0.06em"}}>Click any team to lock a winner. Locked picks are used next simulation run while all other games are simulated.</span>
+        <span style={{fontSize:9,color:"#666",letterSpacing:"0.06em"}}>Click any team to lock a winner. Locked picks override the simulation for that game — re-run to apply changes.</span>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:9,color:"#444"}}>{pickCount} picks locked</span>
           {pickCount > 0 && (
@@ -932,6 +986,7 @@ export default function App() {
     logLines,
     resolved,
     running,
+    phase,
     elapsed,
     teamsCatalog,
     overrides,
@@ -943,6 +998,11 @@ export default function App() {
     toggleForcedPick,
   } = useSimulation();
 
+  const [realResults, setRealResults] = useState<RealGame[]>([]);
+  useEffect(() => {
+    getResults().then(d => setRealResults(d.games || [])).catch(() => {});
+  }, []);
+
   const simTeams = Object.keys(sim.predicted_bracket).length>0
     ? [...new Set(Object.values(sim.predicted_bracket).flatMap(rounds=>(rounds[0]||[]).flatMap((g:Game)=>[g.team_a,g.team_b])))].sort()
     : [];
@@ -950,14 +1010,16 @@ export default function App() {
   const allTeams = simTeams.length > 0 ? simTeams : catalogTeams;
   const hasFF = sim.complete&&Object.keys(sim.first_four_pct||{}).length>0;
   const champ = top(sim.champion_pct,1)[0];
-  const projectedChampionGame = sim.predicted_bracket["FinalFour"]?.[1]?.[0];
-  const projectedChampionName = projectedChampionGame?.winner;
-  const leaderName = sim.complete ? (projectedChampionName || champ?.[0] || "Waiting for simulation") : (champ?.[0] || "Waiting for simulation");
-  const leaderPctNum = leaderName && sim.champion_pct[leaderName] ? sim.champion_pct[leaderName] : (champ?.[1] ?? 0);
+  const leaderName = champ?.[0] || "Waiting for simulation";
+  const leaderPctNum = champ?.[1] ?? 0;
   const leaderPct = leaderPctNum > 0 ? pct(leaderPctNum) : "—";
   const finalFourTop = top(sim.final_four_pct || {}, 4);
   const ffMax = finalFourTop[0]?.[1] || 1;
   const lockedCount = Object.keys(forcedPicks).length;
+
+  const handleImportResults = useCallback((picks: Record<string, string>, count: number) => {
+    setForcedPicks((prev: Record<string, string>) => ({ ...prev, ...picks }));
+  }, [setForcedPicks]);
 
   return (
     <div style={{maxWidth:1280,margin:"0 auto",padding:"20px 18px 52px"}}>
@@ -969,12 +1031,15 @@ export default function App() {
         <a href="https://github.com/alexh212" target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#6b7280",textDecoration:"none",fontWeight:500}}>github.com/alexh212 ↗</a>
       </div>
 
+      <Ticker onImportResults={handleImportResults} />
+
       <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,padding:12,marginBottom:14,background:"#fff"}}>
         <div className="hero-grid">
           <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14}}>
-            <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:4,textTransform:"uppercase"}}>{sim.complete?"Projected Bracket Champion":"Current Leader"}</div>
+            <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:4,textTransform:"uppercase"}}>{sim.complete?"Projected Champion":"Current Leader"}</div>
             <div style={{fontSize:26,fontWeight:700,lineHeight:1.05}}>{leaderName}</div>
             <div style={{fontSize:12,color:"#6b7280",marginTop:5}}>{leaderPct}</div>
+            {leaderPctNum > 0 && <div style={{fontSize:9,color:"#b0b0b0",marginTop:2}}>wins the entire tournament</div>}
             {leaderPctNum > 0 && (
               <div style={{height:3,background:"#f0f0f0",borderRadius:14,overflow:"hidden",marginTop:8}}>
                 <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${Math.min(100, leaderPctNum)}%`,height:"100%",background:sim.complete?GREEN:ACCENT,transition:"width 0.5s ease",borderRadius:14}}/>
@@ -982,7 +1047,8 @@ export default function App() {
             )}
           </div>
           <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14}}>
-            <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:5,textTransform:"uppercase"}}>Final Four Leaders</div>
+            <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:1,textTransform:"uppercase"}}>Final Four Leaders</div>
+            <div style={{fontSize:8,color:"#b0b0b0",marginBottom:5}}>chance to reach the Final Four (win their region)</div>
             <div style={{display:"grid",gap:6}}>
               {finalFourTop.map(([t,p],i)=>(
                 <div key={t}>
@@ -1000,11 +1066,13 @@ export default function App() {
           <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14,display:"grid",alignContent:"space-between"}}>
             <div style={{fontSize:10,color:"#6b7280",lineHeight:1.6}}>
               {sim.done>0?`${sim.done.toLocaleString()} sims run`:"Ready to simulate"}<br/>
-              {sim.complete
+              {phase === "done"
                 ? `${sim.elapsed_sec}s elapsed`
-                : running
-                  ? <span style={{color:"#111",fontWeight:600}}>{elapsed.toFixed(1)}s elapsed</span>
-                  : "Waiting to start"}
+                : phase === "building_bracket"
+                  ? <><span style={{fontWeight:600,color:"#111"}}>{elapsed.toFixed(1)}s</span>{" · "}<span style={{color:"#9ca3af",fontStyle:"italic"}}>Presenting results…</span></>
+                  : phase === "simulating"
+                    ? <span style={{color:"#111",fontWeight:600}}>{elapsed.toFixed(1)}s elapsed</span>
+                    : "Waiting to start"}
             </div>
             <div style={{fontSize:10,color:"#9ca3af"}}>{lockedCount} picks locked</div>
           </div>
@@ -1017,7 +1085,7 @@ export default function App() {
             <TeamProbabilityMath sim={sim} teams={catalogTeams}/>
           </Collapse>
 
-          <GroupTitle label="Run & Track" hint="simulate and monitor live output" />
+          <GroupTitle label="Run & Track" hint="configure and run the Monte Carlo simulation" />
           <Collapse label="Simulation Setup" defaultOpen={true}>
             <SimControls
               running={running}
@@ -1030,7 +1098,7 @@ export default function App() {
             <LiveSimPanel sim={sim} logLines={logLines}/>
           </Collapse>
 
-          <GroupTitle label="Pick & Scenario" hint="interactive bracket + assumptions" />
+          <GroupTitle label="Pick & Scenario" hint="lock game winners and adjust team strengths before simulating" />
           <Collapse label="Bracket Picks & Path" defaultOpen={true}>
             <InitialPickTree
               teamsCatalog={teamsCatalog}
@@ -1038,9 +1106,10 @@ export default function App() {
               forcedPicks={forcedPicks}
               onTogglePick={toggleForcedPick}
               onClearPicks={()=>setForcedPicks({})}
+              realResults={realResults}
             />
           </Collapse>
-          <Collapse label="Assumptions" defaultOpen={false}>
+          <Collapse label="Team Strength Adjustments" defaultOpen={false}>
             <AssumptionsPanel
               teams={catalogTeams}
               overrides={overrides}
@@ -1051,20 +1120,20 @@ export default function App() {
         </div>
 
         <div className="stack insights-rail" style={{position:"sticky",top:12}}>
-          <GroupTitle label="Insights" hint="probability surfaces and diagnostics" />
+          <GroupTitle label="Insights" hint="statistical analysis, diagnostics, and model comparisons" />
           {sim.complete ? (
             <>
-              <Collapse label="Simulation Quality" defaultOpen={true}>
-                <DiagnosticsSection sim={sim} overrides={overrides}/>
-              </Collapse>
-              <Collapse label="Championship Probability" defaultOpen={false}>
+              <Collapse label="Championship Probability" defaultOpen={true}>
                 <ChampionshipChart sim={sim}/>
               </Collapse>
-              <Collapse label="Advancement Heatmap — Top 8 Contenders" defaultOpen={false}>
+              <Collapse label="Round-by-Round Advancement — Top 8" defaultOpen={false}>
                 <OddsComparisonChart sim={sim}/>
               </Collapse>
               <Collapse label="Upset Watch" defaultOpen={false}>
                 <UpsetChart sim={sim}/>
+              </Collapse>
+              <Collapse label="Bracket Value Picks" defaultOpen={false}>
+                <BracketValuePicks sim={sim} teamsCatalog={teamsCatalog}/>
               </Collapse>
               <Collapse label="Model vs Vegas" defaultOpen={false}>
                 <ModelVsMarket sim={sim}/>
@@ -1072,8 +1141,11 @@ export default function App() {
               <Collapse label="Region Difficulty" defaultOpen={false}>
                 <RegionDifficulty sim={sim}/>
               </Collapse>
-              <Collapse label="Seed Win Rates" defaultOpen={false}>
+              <Collapse label="Historical Seed Win Rates" defaultOpen={false}>
                 <SeedHistory sim={sim}/>
+              </Collapse>
+              <Collapse label="Simulation Quality Checks" defaultOpen={false}>
+                <DiagnosticsSection sim={sim} overrides={overrides}/>
               </Collapse>
               {hasFF && (
                 <Collapse label="First Four" defaultOpen={false}>
@@ -1085,19 +1157,19 @@ export default function App() {
                   <AnalysisSection allTeams={allTeams}/>
                 </Collapse>
               )}
-              <Collapse label="Advancement Table" defaultOpen={false}>
+              <Collapse label="Full Advancement Table" defaultOpen={false}>
                 <div style={{maxHeight:520,overflowY:"auto"}}>
                   <AdvancementTable sim={sim}/>
                 </div>
               </Collapse>
             </>
           ) : (
-            <div style={{border:`1px dashed ${BORDER_OUTER}`,borderRadius:14,padding:"12px 14px",fontSize:11,color:"#6b7280",background:"#fff"}}>
-              Run a simulation to unlock advanced insights.
+            <div style={{border:`1px dashed ${BORDER_OUTER}`,borderRadius:14,padding:"12px 14px",fontSize:11,color:"#6b7280",background:"#fff",lineHeight:1.6}}>
+              Run a simulation to unlock advanced insights — championship probabilities, upset watch, model vs Vegas comparisons, region difficulty, seed history, and head-to-head analysis.
             </div>
           )}
 
-          <GroupTitle label="Model details" hint="data and training log" />
+          <GroupTitle label="Model details" hint="training data, model stack, and calibration info" />
           <Collapse label="Data & model" defaultOpen={false}>
             <DataProvenance info={modelInfo}/>
             <ModelTrainingOutput/>
@@ -1107,7 +1179,7 @@ export default function App() {
 
       <div style={{borderTop:`1px solid ${BORDER_SUBTLE}`,marginTop:48,paddingTop:14,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
         <a href="https://github.com/alexh212" target="_blank" rel="noopener noreferrer" style={{fontSize:9,color:"#bbb",textDecoration:"none"}}>github.com/alexh212</a>
-        <span style={{fontSize:9,color:"#bbb"}}>LR + XGBoost + LightGBM · isotonic calibration · latent draws · rolling-origin CV · 77 R64 games 2005-2025 · 20/20 benchmarks</span>
+        <span style={{fontSize:9,color:"#bbb"}}>3-model ensemble (LR + XGBoost + LightGBM) · isotonic calibration · latent strength draws per run · rolling-origin cross-validation · trained on 77 R64 games 2005–2025</span>
         <span style={{fontSize:9,color:"#bbb"}}>Next.js · React · TypeScript · Tailwind CSS</span>
       </div>
     </div>

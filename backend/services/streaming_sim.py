@@ -1,6 +1,9 @@
 """
 Streaming simulation — emits progress events as sims complete.
 Each event contains current win counts so the frontend can update live.
+
+Uses vectorized NumPy simulation: pre-computes pairwise probs once,
+then runs all sims in parallel via array ops (no per-game ML calls).
 """
 import numpy as np
 import time
@@ -11,6 +14,7 @@ from services.simulation import (
     compute_matchup_prob, simulate_game,
     _get_game_model, REGIONS, R64_ORDER
 )
+from services.vectorized_sim import precompute_pairwise_probs, run_vectorized_simulation
 
 logger = logging.getLogger("bracket_api")
 
@@ -104,6 +108,11 @@ def run_streaming_simulation(
         "ts": t0,
     }
 
+    # Pre-compute all pairwise win probs once (no ML calls in sim loop)
+    prob_matrix = precompute_pairwise_probs(teams_68, all_names, cfg)
+    slot_to_default_ff = slot_to_current if has_ff else {}
+    first_four_for_vec = FIRST_FOUR_GAMES if has_ff else None
+
     def _forced_key(region: str, round_i: int, gi: int) -> str:
         return f"{region}:{round_i}:{gi}"
 
@@ -191,111 +200,44 @@ def run_streaming_simulation(
             "score_b": score_b,
         }
 
-    for i in range(n_sims):
-        # Latent draws
-        latent: Dict[str, float] = {}
-        for name, t in teams_68.items():
-            latent[name] = float(rng.normal(0, latent_sigma(t)))
-
-        # First Four
-        ff_winners: Dict[str, str] = {}
-        if has_ff:
-            for game in FIRST_FOUR_GAMES:
-                ta = teams_68.get(game["team_a"])
-                tb = teams_68.get(game["team_b"])
-                if ta and tb:
-                    p, v, _ = compute_matchup_prob(ta, tb, cfg, cache,
-                                                   latent.get(ta.name, 0),
-                                                   latent.get(tb.name, 0))
-                    w = ta if simulate_game(p, v, rng) else tb
-                    ff_winners[game["slot"]] = w.name
-                    won_ff[w.name] += 1
-
-        # Build this sim's 64-team bracket
-        sim_teams = dict(raw_teams)
-        for game in FIRST_FOUR_GAMES:
-            slot = game["slot"]
-            winner = ff_winners.get(slot, game["team_b"])
-            placeholder = slot_to_current.get(slot, game["team_b"])
-            if winner != placeholder:
-                sim_teams.pop(placeholder, None)
-                sim_teams[winner] = all_raw.get(winner, {})
-
-        sim_objs: Dict[str, Team] = {}
-        for name, data in sim_teams.items():
-            clean = {k: v for k, v in data.items() if k in VALID}
-            sim_objs[name] = Team(name=name, **clean)
-
-        # Simulate regions
-        region_champs: Dict[str, Team] = {}
-        for region in REGIONS:
-            seed_map = {t.seed: t for t in sim_objs.values() if t.region == region}
-            bracket = build_region_bracket(seed_map)
-            rw, champ_name, _ = _simulate_region_with_forces(
-                region=region,
-                bracket=bracket,
-                latent_map=latent,
-                stochastic=True,
-                include_games=False,
-            )
-            for t in rw.get("r32", []): won_r64[t] += 1
-            for t in rw.get("s16", []): won_r32[t] += 1
-            for t in rw.get("e8",  []): won_s16[t] += 1
-            for t in rw.get("champ", []): won_e8[t] += 1
-            region_champs[region] = sim_objs[champ_name]
-
-        e, m = region_champs["East"], region_champs["Midwest"]
-        w, s = region_champs["West"], region_champs["South"]
-
-        p1, v1, _ = compute_matchup_prob(e, m, cfg, cache, latent.get(e.name, 0.0), latent.get(m.name, 0.0))
-        forced_sf1 = forced.get("FinalFour:0:0")
-        if forced_sf1 == e.name:
-            sf1 = e
-        elif forced_sf1 == m.name:
-            sf1 = m
-        else:
-            sf1 = e if simulate_game(p1, v1, rng) else m
-
-        p2, v2, _ = compute_matchup_prob(w, s, cfg, cache, latent.get(w.name, 0.0), latent.get(s.name, 0.0))
-        forced_sf2 = forced.get("FinalFour:0:1")
-        if forced_sf2 == w.name:
-            sf2 = w
-        elif forced_sf2 == s.name:
-            sf2 = s
-        else:
-            sf2 = w if simulate_game(p2, v2, rng) else s
-
-        p3, v3, _ = compute_matchup_prob(sf1, sf2, cfg, cache, latent.get(sf1.name, 0.0), latent.get(sf2.name, 0.0))
-        forced_final = forced.get("FinalFour:1:0")
-        if forced_final == sf1.name:
-            champ_obj = sf1
-        elif forced_final == sf2.name:
-            champ_obj = sf2
-        else:
-            champ_obj = sf1 if simulate_game(p3, v3, rng) else sf2
-
-        f4_e, f4_m, f4_w, f4_s, sf1, sf2, champ = e.name, m.name, w.name, s.name, sf1.name, sf2.name, champ_obj.name
-        # All four regional champs made the Final Four
-        for f4_team in [f4_e, f4_m, f4_w, f4_s]:
-            won_f4[f4_team] += 1
-        # Only the two semifinal winners made the title game
-        in_title[sf1] += 1
-        in_title[sf2] += 1
-        won_ncg[champ] += 1
+    # Vectorized simulation: run in chunks to emit progress
+    done_total = 0
+    for chunk_start in range(0, n_sims, emit_every):
+        chunk_size = min(emit_every, n_sims - chunk_start)
+        counts = run_vectorized_simulation(
+            teams=teams_68,
+            team_names=all_names,
+            prob_matrix=prob_matrix,
+            n_sims=chunk_size,
+            latent_sigma=cfg.latent_sigma,
+            rng=rng,
+            forced_picks=forced,
+            first_four_games=first_four_for_vec,
+            slot_to_default=slot_to_default_ff,
+        )
+        # Accumulate into dict counters
+        for j, name in enumerate(all_names):
+            won_r64[name] += int(counts["won_r64"][:, j].sum())
+            won_r32[name] += int(counts["won_r32"][:, j].sum())
+            won_s16[name] += int(counts["won_s16"][:, j].sum())
+            won_e8[name] += int(counts["won_e8"][:, j].sum())
+            won_f4[name] += int(counts["won_f4"][:, j].sum())
+            won_ncg[name] += int(counts["won_ncg"][:, j].sum())
+            in_title[name] += int(counts["in_title"][:, j].sum())
+            won_ff[name] += int(counts["won_ff"][:, j].sum())
+        done_total += chunk_size
 
         # Emit progress
-        if (i + 1) % emit_every == 0 or i == n_sims - 1:
-            done = i + 1
-            def pct(d):
-                return {k: round(v/done*100, 1) for k, v in d.items() if v > 0}
-            yield {
-                "type": "progress",
-                "done": done,
-                "total": n_sims,
-                "champion_pct": dict(sorted(pct(won_ncg).items(), key=lambda x: x[1], reverse=True)[:10]),
-                "final_four_pct": dict(sorted(pct(won_f4).items(), key=lambda x: x[1], reverse=True)[:10]),
-                "ts": time.time(),
-            }
+        def pct(d):
+            return {k: round(v / done_total * 100, 1) for k, v in d.items() if v > 0}
+        yield {
+            "type": "progress",
+            "done": done_total,
+            "total": n_sims,
+            "champion_pct": dict(sorted(pct(won_ncg).items(), key=lambda x: x[1], reverse=True)[:10]),
+            "final_four_pct": dict(sorted(pct(won_f4).items(), key=lambda x: x[1], reverse=True)[:10]),
+            "ts": time.time(),
+        }
 
     # Final complete result
     elapsed = round(time.time() - t0, 2)
@@ -360,6 +302,16 @@ def run_streaming_simulation(
 
     gm = _get_game_model()
     model_used = "calibrated_ml_stack" if gm and gm.is_fitted else "fallback_blend"
+
+    # Emit final MC odds before game events so the hero updates immediately
+    yield {
+        "type": "progress",
+        "done": n,
+        "total": n,
+        "champion_pct": dict(sorted(fpct(won_ncg).items(), key=lambda x: x[1], reverse=True)[:10]),
+        "final_four_pct": dict(sorted(fpct(won_f4).items(), key=lambda x: x[1], reverse=True)[:10]),
+        "ts": time.time(),
+    }
 
     # Emit games one by one so brackets populate live.
     # R64 -> R32 -> S16 -> E8, interleaved across regions.

@@ -1,0 +1,118 @@
+{
+  "last_updated": "2026-03-20T22:00:00Z",
+  "tournament_status": "Round of 64 — Day 1",
+  "games": [
+    {
+      "region": "East", "round": 0, "game_index": 0,
+      "team_a": "Duke", "team_b": "Siena",
+      "seed_a": 1, "seed_b": 16,
+      "score_a": 82, "score_b": 58,
+      "winner": "Duke", "status": "final"
+    },
+    {
+      "region": "East", "round": 0, "game_index": 1,
+      "team_a": "Ohio St.", "team_b": "TCU",
+      "seed_a": 8, "seed_b": 9,
+      "score_a": 67, "score_b": 71,
+      "winner": "TCU", "status": "final"
+    },
+    {
+      "region": "East", "round": 0, "game_index": 2,
+      "team_a": "St. John's", "team_b": "Northern Iowa",
+      "seed_a": 5, "seed_b": 12,
+      "score_a": 75, "score_b": 68,
+      "winner": "St. John's", "status": "final"
+    },
+    {
+      "region": "East", "round": 0, "game_index": 3,
+      "team_a": "Kansas", "team_b": "Cal Baptist",
+      "seed_a": 4, "seed_b": 13,
+      "score_a": 79, "score_b": 61,
+      "winner": "Kansas", "status": "final"
+    },
+    {
+      "region": "East", "round": 0, "game_index": 4,
+      "team_a": "Louisville", "team_b": "South Florida",
+      "seed_a": 6, "seed_b": 11,
+      "score_a": 63, "score_b": 58,
+      "winner": "Louisville", "status": "final"
+    },
+    {
+      "region": "East", "round": 0, "game_index": 5,
+      "team_a": "Michigan St.", "team_b": "North Dakota St.",
+      "seed_a": 3, "seed_b": 14,
+      "score_a": 81, "score_b": 64,
+      "winner": "Michigan St.", "status": "final"
+    },
+    {
+      "region": "East", "round": 0, "game_index": 6,
+      "team_a": "UCLA", "team_b": "UCF",
+      "seed_a": 7, "seed_b": 10,
+      "score_a": 70, "score_b": 74,
+      "winner": "UCF", "status": "final"
+    },
+    {
+      "region": "East", "round": 0, "game_index": 7,
+      "team_a": "UConn", "team_b": "Furman",
+      "seed_a": 2, "seed_b": 15,
+      "score_a": 88, "score_b": 62,
+      "winner": "UConn", "status": "final"
+    },
+    {
+      "region": "West", "round": 0, "game_index": 0,
+      "team_a": "Arizona", "team_b": "LIU",
+      "seed_a": 1, "seed_b": 16,
+      "score_a": 91, "score_b": 52,
+      "winner": "Arizona", "status": "final"
+    },
+    {
+      "region": "West", "round": 0, "game_index": 1,
+      "team_a": "Villanova", "team_b": "Utah St.",
+      "seed_a": 8, "seed_b": 9,
+      "score_a": 61, "score_b": 64,
+      "winner": "Utah St.", "status": "final"
+    },
+    {
+      "region": "West", "round": 0, "game_index": 2,
+      "team_a": "Wisconsin", "team_b": "High Point",
+      "seed_a": 5, "seed_b": 12,
+      "score_a": 70, "score_b": 72,
+      "winner": "High Point", "status": "final"
+    },
+    {
+      "region": "West", "round": 0, "game_index": 3,
+      "team_a": "Arkansas", "team_b": "Hawaii",
+      "seed_a": 4, "seed_b": 13,
+      "score_a": 78, "score_b": 63,
+      "winner": "Arkansas", "status": "final"
+    },
+    {
+      "region": "West", "round": 0, "game_index": 4,
+      "team_a": "BYU", "team_b": "NC State",
+      "seed_a": 6, "seed_b": 11,
+      "score_a": 65, "score_b": 69,
+      "winner": "NC State", "status": "final"
+    },
+    {
+      "region": "West", "round": 0, "game_index": 5,
+      "team_a": "Gonzaga", "team_b": "Kennesaw St.",
+      "seed_a": 3, "seed_b": 14,
+      "score_a": 84, "score_b": 60,
+      "winner": "Gonzaga", "status": "final"
+    },
+    {
+      "region": "West", "round": 0, "game_index": 6,
+      "team_a": "Miami FL", "team_b": "Missouri",
+      "seed_a": 7, "seed_b": 10,
+      "score_a": 66, "score_b": 62,
+      "winner": "Miami FL", "status": "final"
+    },
+    {
+      "region": "West", "round": 0, "game_index": 7,
+      "team_a": "Purdue", "team_b": "Queens NC",
+      "seed_a": 2, "seed_b": 15,
+      "score_a": 85, "score_b": 59,
+      "winner": "Purdue", "status": "final"
+    }
+  ]
+}

@@ -6,11 +6,14 @@ import { createSimulationStreamUrl, getModelInfo, getTeams } from "@/lib/api";
 import type { ForcedPicks, ModelInfo, Resolved, SimRunConfig, SimState, TeamOverrides } from "@/components/app/types";
 import { EMPTY_SIM_STATE } from "@/components/app/types";
 
+export type SimPhase = "idle" | "simulating" | "building_bracket" | "done";
+
 export function useSimulation() {
   const [sim, setSim] = useState<SimState>(EMPTY_SIM_STATE);
   const [logLines, setLog] = useState<string[]>([]);
   const [resolved, setResolved] = useState<Resolved>({});
   const [running, setRunning] = useState(false);
+  const [phase, setPhase] = useState<SimPhase>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [teamsCatalog, setTeamsCatalog] = useState<Record<string, any>>({});
   const [overrides, setOverrides] = useState<TeamOverrides>({});
@@ -34,6 +37,7 @@ export function useSimulation() {
     setResolved({});
     setLog(["connecting..."]);
     setRunning(true);
+    setPhase("simulating");
     startTimeRef.current = Date.now();
 
     const es = new EventSource(createSimulationStreamUrl(cfg));
@@ -70,6 +74,10 @@ export function useSimulation() {
           total: data.total,
           sims_per_sec: simsPerSec,
         }));
+        if (data.done >= data.total) {
+          setElapsed(elapsedSec);
+          setPhase("building_bracket");
+        }
         const leader = Object.entries(data.champion_pct as Record<string, number>).sort((a, b) => b[1] - a[1])[0];
         if (leader) {
           setLog((prev) => [
@@ -128,12 +136,14 @@ export function useSimulation() {
         const champ = Object.entries(data.champion_pct as Record<string, number>).sort((a, b) => b[1] - a[1])[0];
         setLog((prev) => [...prev, "", `complete — ${data.elapsed_sec}s`, `champion: ${champ?.[0]} ${champ?.[1].toFixed(1)}%`]);
         setRunning(false);
+        setPhase("done");
         es.close();
       }
 
       if (data.type === "error") {
         setLog((prev) => [...prev, `error: ${data.message}`]);
         setRunning(false);
+        setPhase("idle");
         es.close();
       }
     };
@@ -141,6 +151,7 @@ export function useSimulation() {
     es.onerror = () => {
       setLog((prev) => [...prev, "connection error"]);
       setRunning(false);
+      setPhase("idle");
       es.close();
     };
   }, []);
@@ -148,14 +159,14 @@ export function useSimulation() {
   useEffect(() => () => esRef.current?.close(), []);
 
   useEffect(() => {
-    if (!running) {
+    if (phase !== "simulating") {
       return;
     }
     const id = setInterval(() => {
       setElapsed((Date.now() - startTimeRef.current) / 1000);
     }, 100);
     return () => clearInterval(id);
-  }, [running]);
+  }, [phase]);
 
   const toggleForcedPick = useCallback((key: string, winner: string) => {
     setForcedPicks((prev) =>
@@ -170,6 +181,7 @@ export function useSimulation() {
     logLines,
     resolved,
     running,
+    phase,
     elapsed,
     teamsCatalog,
     overrides,
