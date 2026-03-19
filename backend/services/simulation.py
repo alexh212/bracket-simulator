@@ -271,7 +271,9 @@ def _fallback_prob(a: Team, b: Team, cfg: SimulationConfig) -> float:
     mkt   = (a.moneyline_prob / mkt_s) if mkt_s > 0.002 else 0.5
     sp    = seed_win_prob(a.seed, b.seed)
     p     = 0.35*kp + 0.25*elo + 0.25*mkt + 0.15*sp
-    return float(np.clip(p * a.injury_factor ** 1.6, 0.02, 0.98))
+    # Both teams' injuries affect the matchup: A's injury hurts A, B's injury helps A
+    injury_adjust = (a.injury_factor / max(b.injury_factor, 0.01)) ** 1.6
+    return float(np.clip(p * injury_adjust, 0.02, 0.98))
 
 
 # ── Single game sampler ───────────────────────────────────────────────────

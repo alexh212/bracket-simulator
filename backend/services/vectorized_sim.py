@@ -187,8 +187,7 @@ def run_vectorized_simulation(
             else:
                 winners = (rng.random(n_sims) < probs).astype(np.int32)
             ff_winners[slot] = np.where(winners == 1, ia, ib)
-            for s in range(n_sims):
-                won_ff[s, ff_winners[slot][s]] += 1
+            np.add.at(won_ff, (np.arange(n_sims), ff_winners[slot]), 1)
 
     ff_slot_map: Dict[str, Tuple[str, int]] = {}
     if has_ff and first_four_games:
@@ -225,23 +224,17 @@ def run_vectorized_simulation(
         else:
             cur = br.copy()
 
+        round_targets = [won_r64, won_r32, won_s16, won_e8]
         for round_i in range(4):
             n_games = 8 >> round_i
             winners_team, _ = _simulate_region_round(
                 cur, prob_matrix, latent, rng, forced, region, round_i,
                 name_to_idx, n_sims,
             )
-            for s in range(n_sims):
-                for g in range(n_games):
-                    w = winners_team[s, g]
-                    if round_i == 0:
-                        won_r64[s, w] += 1
-                    elif round_i == 1:
-                        won_r32[s, w] += 1
-                    elif round_i == 2:
-                        won_s16[s, w] += 1
-                    else:
-                        won_e8[s, w] += 1
+            target = round_targets[round_i]
+            sim_idx = np.repeat(np.arange(n_sims), n_games)
+            team_idx = winners_team[:, :n_games].ravel()
+            np.add.at(target, (sim_idx, team_idx), 1)
             if n_games == 1:
                 region_champs_all[:, ri] = winners_team[:, 0]
                 break
@@ -255,11 +248,9 @@ def run_vectorized_simulation(
     sf2_a = region_champs_all[:, w_idx]  # West
     sf2_b = region_champs_all[:, s_idx]  # South
 
-    for s in range(n_sims):
-        won_f4[s, region_champs_all[s, e_idx]] += 1
-        won_f4[s, region_champs_all[s, m_idx]] += 1
-        won_f4[s, region_champs_all[s, w_idx]] += 1
-        won_f4[s, region_champs_all[s, s_idx]] += 1
+    sim_range = np.arange(n_sims)
+    for reg_idx in [e_idx, w_idx, m_idx, s_idx]:
+        np.add.at(won_f4, (sim_range, region_champs_all[:, reg_idx]), 1)
 
     base_p1 = prob_matrix[sf1_a, sf1_b]
     probs1 = _apply_latent_to_probs(
@@ -301,8 +292,8 @@ def run_vectorized_simulation(
         winners_sf2 = (rng.random(n_sims) < probs2).astype(np.int32)
     sf2_winner = np.where(winners_sf2 == 1, sf2_a, sf2_b)
 
-    in_title[np.arange(n_sims), sf1_winner] += 1
-    in_title[np.arange(n_sims), sf2_winner] += 1
+    np.add.at(in_title, (sim_range, sf1_winner), 1)
+    np.add.at(in_title, (sim_range, sf2_winner), 1)
 
     base_p3 = prob_matrix[sf1_winner, sf2_winner]
     probs3 = _apply_latent_to_probs(
@@ -323,7 +314,7 @@ def run_vectorized_simulation(
     else:
         winners_final = (rng.random(n_sims) < probs3).astype(np.int32)
     champion = np.where(winners_final == 1, sf1_winner, sf2_winner)
-    won_ncg[np.arange(n_sims), champion] += 1
+    np.add.at(won_ncg, (sim_range, champion), 1)
 
     return {
         "won_r64": won_r64,

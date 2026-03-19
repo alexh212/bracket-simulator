@@ -466,9 +466,21 @@ function InitialPickTree({
         <RegionPanel region={activeRegion}/>
       </div>
       <div style={{borderTop:`1px solid ${BORDER_SUBTLE}`,padding:"10px"}}>
-        <div style={{fontSize:9,color:"#999",marginBottom:8,textAlign:"center",letterSpacing:"0.06em"}}>
-          Projected bracket path based on the most likely winner of each game
-        </div>
+        {(() => {
+          const mcChamp = Object.entries(sim.champion_pct || {}).sort((a,b) => b[1] - a[1])[0];
+          const mcName = mcChamp?.[0];
+          const pathDiffers = titleWinner && mcName && titleWinner !== mcName;
+          return (
+            <div style={{fontSize:9,color:"#999",marginBottom:8,textAlign:"center",letterSpacing:"0.06em",lineHeight:1.6}}>
+              Most likely game-by-game bracket path (each game&apos;s individual favorite)
+              {pathDiffers && sim.complete && (
+                <div style={{color:"#d97706",fontWeight:600,marginTop:2,letterSpacing:"0.04em"}}>
+                  Note: {mcName} is the Monte Carlo champion ({pct(mcChamp[1])}) despite {titleWinner} winning this specific path — {mcName} wins more often across all {sim.total.toLocaleString()} simulated paths
+                </div>
+              )}
+            </div>
+          );
+        })()}
         <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
           <div style={{border:`1px solid ${BORDER_OUTER}`,background:"#fff",borderRadius:14,overflow:"hidden"}}>
             <div style={{padding:"6px 10px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER,fontSize:9,color:"#777",letterSpacing:"0.08em",textTransform:"uppercase",textAlign:"center"}}>
@@ -1039,7 +1051,7 @@ export default function App() {
             <div style={{fontSize:9,letterSpacing:"0.12em",color:"#9ca3af",marginBottom:4,textTransform:"uppercase"}}>{sim.complete?"Projected Champion":"Current Leader"}</div>
             <div style={{fontSize:26,fontWeight:700,lineHeight:1.05}}>{leaderName}</div>
             <div style={{fontSize:12,color:"#6b7280",marginTop:5}}>{leaderPct}</div>
-            {leaderPctNum > 0 && <div style={{fontSize:9,color:"#b0b0b0",marginTop:2}}>wins the entire tournament</div>}
+            {leaderPctNum > 0 && <div style={{fontSize:9,color:"#b0b0b0",marginTop:2}}>wins the tournament most often across all simulated paths</div>}
             {leaderPctNum > 0 && (
               <div style={{height:3,background:"#f0f0f0",borderRadius:14,overflow:"hidden",marginTop:8}}>
                 <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${Math.min(100, leaderPctNum)}%`,height:"100%",background:sim.complete?GREEN:ACCENT,transition:"width 0.5s ease",borderRadius:14}}/>

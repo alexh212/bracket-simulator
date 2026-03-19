@@ -89,10 +89,7 @@ def run_streaming_simulation(
         team_overrides=team_overrides or {},
     )
     forced = forced_picks or {}
-    rng = np.random.default_rng()  # no fixed seed — different results each run!
-
-    def latent_sigma(t: Team) -> float:
-        return cfg.latent_sigma * (1 + 0.3 * t.seed / 16)
+    rng = np.random.default_rng()
 
     slot_to_current = {}
     if has_ff:
