@@ -1138,38 +1138,38 @@ export default function App() {
               <Collapse label="Championship Probability" defaultOpen={true}>
                 <ChampionshipChart sim={sim}/>
               </Collapse>
-              <Collapse label="Round-by-Round Advancement — Top 8" defaultOpen={false}>
+              <Collapse label="Round-by-Round Advancement — Top 8" defaultOpen={true}>
                 <OddsComparisonChart sim={sim}/>
               </Collapse>
-              <Collapse label="Upset Watch" defaultOpen={false}>
+              <Collapse label="Upset Watch" defaultOpen={true}>
                 <UpsetChart sim={sim}/>
               </Collapse>
-              <Collapse label="Bracket Value Picks" defaultOpen={false}>
+              <Collapse label="Bracket Value Picks" defaultOpen={true}>
                 <BracketValuePicks sim={sim} teamsCatalog={teamsCatalog}/>
               </Collapse>
-              <Collapse label="Model vs Vegas" defaultOpen={false}>
+              <Collapse label="Model vs Vegas" defaultOpen={true}>
                 <ModelVsMarket sim={sim}/>
               </Collapse>
-              <Collapse label="Region Difficulty" defaultOpen={false}>
+              <Collapse label="Region Difficulty" defaultOpen={true}>
                 <RegionDifficulty sim={sim}/>
               </Collapse>
-              <Collapse label="Historical Seed Win Rates" defaultOpen={false}>
+              <Collapse label="Historical Seed Win Rates" defaultOpen={true}>
                 <SeedHistory sim={sim}/>
               </Collapse>
-              <Collapse label="Simulation Quality Checks" defaultOpen={false}>
+              <Collapse label="Simulation Quality Checks" defaultOpen={true}>
                 <DiagnosticsSection sim={sim} overrides={overrides}/>
               </Collapse>
               {hasFF && (
-                <Collapse label="First Four" defaultOpen={false}>
+                <Collapse label="First Four" defaultOpen={true}>
                   <FirstFourSection sim={sim}/>
                 </Collapse>
               )}
               {allTeams.length>0 && (
-                <Collapse label="Head-to-Head Analysis" defaultOpen={false}>
+                <Collapse label="Head-to-Head Analysis" defaultOpen={true}>
                   <AnalysisSection allTeams={allTeams}/>
                 </Collapse>
               )}
-              <Collapse label="Full Advancement Table" defaultOpen={false}>
+              <Collapse label="Full Advancement Table" defaultOpen={true}>
                 <div style={{maxHeight:520,overflowY:"auto"}}>
                   <AdvancementTable sim={sim}/>
                 </div>
