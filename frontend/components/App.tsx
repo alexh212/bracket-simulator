@@ -1081,7 +1081,7 @@ export default function App() {
               {phase === "done"
                 ? `${sim.elapsed_sec}s elapsed`
                 : phase === "building_bracket"
-                  ? <><span style={{fontWeight:600,color:"#111"}}>{elapsed.toFixed(1)}s</span>{" · "}<span style={{color:"#9ca3af",fontStyle:"italic"}}>Presenting results…</span></>
+                  ? <><span style={{fontWeight:600,color:"#111"}}>{elapsed.toFixed(1)}s</span>{" · "}<span className="pulse-dot" style={{marginRight:4}}/><span style={{color:"#16a34a",fontWeight:600}}>Presenting results…</span></>
                   : phase === "simulating"
                     ? <span style={{color:"#111",fontWeight:600}}>{elapsed.toFixed(1)}s elapsed</span>
                     : "Waiting to start"}
