@@ -308,7 +308,7 @@ function InitialPickTree({
                               color:locked?"#fff":"#111",cursor:"pointer",textAlign:"left"
                             }}
                           >
-                            <Seed n={seed}/>
+                            <Seed n={seed} inverted={locked}/>
                             <span style={{flex:1,fontSize:10,fontWeight:locked||isSimPick?700:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</span>
                             {locked && <span style={{fontSize:7,background:"#fff",color:"#111",padding:"1px 4px",borderRadius:14,fontWeight:700,letterSpacing:"0.04em"}}>LOCK</span>}
                             {locked && <span style={{fontSize:11,color:"#22c55e",lineHeight:1}}>✓</span>}

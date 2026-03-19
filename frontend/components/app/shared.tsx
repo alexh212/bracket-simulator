@@ -45,7 +45,8 @@ export function SH({ label }: { label: string }) {
   );
 }
 
-export function Seed({ n }: { n: number }) {
+export function Seed({ n, inverted }: { n: number; inverted?: boolean }) {
+  const topSeed = n <= 4;
   return (
     <span
       style={{
@@ -57,9 +58,9 @@ export function Seed({ n }: { n: number }) {
         fontSize: 9,
         fontWeight: 600,
         flexShrink: 0,
-        border: "1px solid #d1d5db",
-        background: n <= 4 ? "#111" : "transparent",
-        color: n <= 4 ? "#fff" : "#111",
+        border: `1px solid ${inverted ? "rgba(255,255,255,0.3)" : "#d1d5db"}`,
+        background: topSeed && !inverted ? "#111" : inverted ? "rgba(255,255,255,0.15)" : "transparent",
+        color: inverted ? "#fff" : topSeed ? "#fff" : "#111",
       }}
     >
       {n}
