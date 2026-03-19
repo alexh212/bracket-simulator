@@ -2,6 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Light (default) — aligned with dashboard token scale */
+:root {
+  --bg: #ffffff;
+  --bg-surface: #f8f8f8;
+  --bg-raised: #f0f0f0;
+  --bg-input: #f5f5f5;
+  --border: #e2e2e2;
+  --border-hover: #d0d0d0;
+  --border-active: #c0c0c0;
+  --border-strong: #b0b0b0;
+  --text: #1a1a1a;
+  --text-secondary: #555555;
+  --text-muted: #777777;
+  --text-dim: #888888;
+  --text-faint: #aaaaaa;
+  --text-ghost: #cccccc;
+  --scrollbar-thumb: #d0d0d0;
+
+  --page-bg: var(--bg);
+  --surface: #ffffff;
+  --bg-header: var(--bg-raised);
+  --bg-alt: var(--bg-surface);
+  --border-outer: var(--border);
+  --border-inner: var(--border-hover);
+  --border-subtle: var(--border);
+  --accent: #1a1a1a;
+  --accent-soft: #f5f5f5;
+  --progress-track: var(--bg-raised);
+  --seed-border: var(--border-strong);
+  --seed-top-bg: #1a1a1a;
+  --seed-top-fg: #ffffff;
+  --ticker-shell-bg: var(--bg-surface);
+  --chip-bg: #ffffff;
+  --chip-border: var(--border);
+  --range-track: var(--border-hover);
+  --range-thumb: #1a1a1a;
+  --select-option-bg: #ffffff;
+  --select-option-fg: #1a1a1a;
+  --disabled-btn-bg: var(--bg-raised);
+  --muted-bar: #cccccc;
+  --skeleton-border: var(--border-hover);
+}
+
+/* Deep dark — same vibe as your other app */
+[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --bg-surface: #0d0d0d;
+  --bg-raised: #111111;
+  --bg-input: #0f0f0f;
+  --border: #1a1a1a;
+  --border-hover: #222222;
+  --border-active: #2a2a2a;
+  --border-strong: #333333;
+  --text: #ededed;
+  --text-secondary: #888888;
+  --text-muted: #555555;
+  --text-dim: #444444;
+  --text-faint: #333333;
+  --text-ghost: #222222;
+  --scrollbar-thumb: #333333;
+
+  --page-bg: var(--bg);
+  --surface: var(--bg-surface);
+  --bg-header: var(--bg-raised);
+  --bg-alt: var(--bg-input);
+  --border-outer: var(--border);
+  --border-inner: var(--border-hover);
+  --border-subtle: var(--border);
+  --accent: #ededed;
+  --accent-soft: var(--bg-raised);
+  --progress-track: var(--border-hover);
+  --seed-border: var(--border-strong);
+  --seed-top-bg: #ededed;
+  --seed-top-fg: #0a0a0a;
+  --ticker-shell-bg: var(--bg-surface);
+  --chip-bg: var(--bg-surface);
+  --chip-border: var(--border-active);
+  --range-track: var(--border-active);
+  --range-thumb: #ededed;
+  --select-option-bg: var(--bg-surface);
+  --select-option-fg: var(--text);
+  --disabled-btn-bg: var(--border-hover);
+  --muted-bar: var(--border-strong);
+  --skeleton-border: var(--border-active);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -21,8 +107,8 @@ code {
 html { font-size: 14px; }
 
 body {
-  background: #fff;
-  color: #111;
+  background: var(--page-bg);
+  color: var(--text);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -67,7 +153,7 @@ input[type=range] {
   -webkit-appearance: none;
   appearance: none;
   height: 3px;
-  background: #e0e0e0;
+  background: var(--range-track);
   border-radius: 14px;
   outline: none;
   cursor: pointer;
@@ -78,17 +164,17 @@ input[type=range]::-webkit-slider-thumb {
   width: 11px;
   height: 11px;
   border-radius: 14px;
-  background: #111;
+  background: var(--range-thumb);
   cursor: pointer;
 }
 
 select option {
-  background: #fff;
-  color: #000;
+  background: var(--select-option-bg);
+  color: var(--select-option-fg);
 }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-thumb { background: #ddd; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
 
 .terminal-log::-webkit-scrollbar {
   display: none;
@@ -140,4 +226,28 @@ select option {
   animation-play-state: paused;
 }
 
-::selection { background: rgba(0,0,0,0.1); }
+.theme-toggle {
+  height: 28px;
+  width: 28px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+}

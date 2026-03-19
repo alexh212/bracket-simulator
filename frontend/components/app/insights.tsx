@@ -13,6 +13,11 @@ import {
   PAD_BODY,
   PAD_HEADER,
   Seed,
+  SURFACE,
+  TEXT,
+  TEXT_MUTED,
+  TEXT_SUBTLE,
+  PROGRESS_TRACK,
   pct,
   sumPct,
   toML,
@@ -62,9 +67,9 @@ export function DiagnosticsSection({ sim, overrides }: { sim: SimState; override
   const statusBg = (ok: boolean) => (ok ? "#dcfce7" : "#fee2e2");
 
   return (
-    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: "#fff" }}>
+    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: "#666" }}>Sanity checks — verifies probabilities sum correctly (e.g., all championship %s ≈ 100%) and reports simulation precision.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Sanity checks — verifies probabilities sum correctly (e.g., all championship %s ≈ 100%) and reports simulation precision.</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr" }}>
         <div style={{ padding: "12px 14px", borderRight: `1px solid ${BORDER_INNER}` }}>
@@ -72,10 +77,10 @@ export function DiagnosticsSection({ sim, overrides }: { sim: SimState; override
             const delta = c.actual - c.target;
             const ok = Math.abs(delta) <= c.tol;
             return (
-              <div key={c.label} title={c.hint} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: "1px solid #f2f2f2", cursor: "help" }}>
-                <div style={{ fontSize: 11, color: "#444" }}>{c.label}</div>
+              <div key={c.label} title={c.hint} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${BORDER_SUBTLE}`, cursor: "help" }}>
+                <div style={{ fontSize: 11, color: TEXT_MUTED }}>{c.label}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 10, color: "#888" }}>{c.actual.toFixed(1)}% vs {c.target}%</span>
+                  <span style={{ fontSize: 10, color: TEXT_SUBTLE }}>{c.actual.toFixed(1)}% vs {c.target}%</span>
                   <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 14, color: statusColor(ok), background: statusBg(ok) }}>
                     {ok ? "OK" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)}pp`}
                   </span>
@@ -96,7 +101,7 @@ export function DiagnosticsSection({ sim, overrides }: { sim: SimState; override
             { label: "Monte Carlo runs", value: sim.n_sims.toLocaleString(), hint: "Total bracket simulations run — more runs = higher precision" },
           ].map((m) => (
             <div key={m.label} title={m.hint} style={{ border: `1px solid ${BORDER_SUBTLE}`, padding: "8px 10px", cursor: "help" }}>
-              <div style={{ fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: "#888", marginBottom: 4 }}>{m.label}</div>
+              <div style={{ fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: TEXT_SUBTLE, marginBottom: 4 }}>{m.label}</div>
               <div style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.1 }}>{m.value}</div>
             </div>
           ))}
@@ -113,13 +118,13 @@ export function DataProvenance({ info }: { info: ModelInfo | null }) {
   const md = info.model_details;
   const stack = (md?.stack || ["logistic_regression", "xgboost", "lightgbm", "meta_logistic"]).join(" + ");
   const Row = ({ label, value }: { label: string; value: ReactNode }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderBottom: "1px solid #f1f5f9", fontSize: 12 }}>
-      <span style={{ color: "#64748b", flexShrink: 0 }}>{label}</span>
-      <span style={{ color: "#0f172a", textAlign: "right" }}>{value}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderBottom: `1px solid ${BORDER_INNER}`, fontSize: 12 }}>
+      <span style={{ color: TEXT_MUTED, flexShrink: 0 }}>{label}</span>
+      <span style={{ color: TEXT, textAlign: "right" }}>{value}</span>
     </div>
   );
   return (
-    <div style={{ padding: "14px 16px", background: "#fff" }}>
+    <div style={{ padding: "14px 16px", background: SURFACE }}>
       <div style={{ fontSize: 11, fontWeight: 600, color: "#334155", marginBottom: 10 }}>Data & model</div>
       <Row label="Bracket" value={<>{inf.dataset} · {inf.season} · {inf.teams_in_bracket} teams</>} />
       <Row label="Freeze date" value={inf.selection_sunday_freeze} />
@@ -128,7 +133,7 @@ export function DataProvenance({ info }: { info: ModelInfo | null }) {
       <Row label="Stack" value={stack} />
       <Row label="Calibration" value={md?.calibration || "isotonic"} />
       <Row label="Features" value={<>{md?.core_feature_count ?? "—"} core + {md?.market_feature_count ?? "—"} market/meta</>} />
-      <div style={{ paddingTop: 8, fontSize: 11, color: "#64748b", lineHeight: 1.5 }}>
+      <div style={{ paddingTop: 8, fontSize: 11, color: TEXT_MUTED, lineHeight: 1.5 }}>
         {md?.market_usage || "Vegas odds used as a feature in the model blend"} · {md?.variance_modeling || "Random per-team strength perturbations each sim run to capture game-day variance"}.
       </div>
     </div>
@@ -188,18 +193,18 @@ export function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: stri
   const likelyOutcome = [...pathBuckets].sort((a, b) => b.p - a.p)[0];
 
   return (
-    <div style={{ background: "#fff" }}>
+    <div style={{ background: SURFACE }}>
       <div style={{ padding: PAD_HEADER, borderBottom: `1px solid ${BORDER_SUBTLE}`, background: BG_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10, color: "#666" }}>Round-by-round advancement odds from Monte Carlo simulation</span>
+        <span style={{ fontSize: 10, color: TEXT_MUTED }}>Round-by-round advancement odds from Monte Carlo simulation</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 10, color: "#888" }}>Team</span>
-          <select value={team} onChange={(e) => setTeam(e.target.value)} style={{ height: 30, padding: "0 10px", border: `1px solid ${BORDER_SUBTLE}`, fontSize: 11, background: "#fff", minWidth: 180 }}>
+          <span style={{ fontSize: 10, color: TEXT_SUBTLE }}>Team</span>
+          <select value={team} onChange={(e) => setTeam(e.target.value)} style={{ height: 30, padding: "0 10px", border: `1px solid ${BORDER_SUBTLE}`, fontSize: 11, background: SURFACE, minWidth: 180 }}>
             {teams.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
       </div>
       {!sim.complete ? (
-        <div style={{ padding: PAD_BODY, fontSize: 10, color: "#888" }}>
+        <div style={{ padding: PAD_BODY, fontSize: 10, color: TEXT_SUBTLE }}>
           Pick a team and run a simulation to see probabilities.
         </div>
       ) : (
@@ -208,11 +213,11 @@ export function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: stri
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${BORDER_SUBTLE}`, background: BG_HEADER }}>
-                  <th style={{ padding: "8px 10px", textAlign: "left", fontSize: 9, color: "#777", letterSpacing: "0.06em" }}>OUTCOME</th>
-                  <th title="% of runs where this team reached this round" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: "#777", letterSpacing: "0.06em", cursor: "help" }}>CHANCE</th>
-                  <th title="Average times this happens in N runs (e.g., 1,480 / 10,000)" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: "#777", letterSpacing: "0.06em", cursor: "help" }}>EXPECTED HITS</th>
-                  <th title="95% confidence interval — true probability likely falls in this range" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: "#777", letterSpacing: "0.06em", cursor: "help" }}>95% CI</th>
-                  <th title="Implied American moneyline odds (e.g., +650 means bet $100 to win $650)" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: "#777", letterSpacing: "0.06em", cursor: "help" }}>FAIR ODDS</th>
+                  <th style={{ padding: "8px 10px", textAlign: "left", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em" }}>OUTCOME</th>
+                  <th title="% of runs where this team reached this round" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em", cursor: "help" }}>CHANCE</th>
+                  <th title="Average times this happens in N runs (e.g., 1,480 / 10,000)" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em", cursor: "help" }}>EXPECTED HITS</th>
+                  <th title="95% confidence interval — true probability likely falls in this range" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em", cursor: "help" }}>95% CI</th>
+                  <th title="Implied American moneyline odds (e.g., +650 means bet $100 to win $650)" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em", cursor: "help" }}>FAIR ODDS</th>
                 </tr>
               </thead>
               <tbody>
@@ -220,7 +225,7 @@ export function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: stri
                   const m = explain(r.value);
                   const fairOdds = m.p <= 0 || m.p >= 1 ? "N/A" : toML(m.p);
                   return (
-                    <tr key={r.label} style={{ borderBottom: `1px solid ${BORDER_SUBTLE}`, background: idx % 2 === 0 ? "#fff" : BG_HEADER }}>
+                    <tr key={r.label} style={{ borderBottom: `1px solid ${BORDER_SUBTLE}`, background: idx % 2 === 0 ? SURFACE : BG_HEADER }}>
                       <td style={{ padding: "8px 10px", fontWeight: 500 }}>{r.label}</td>
                       <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 600 }}>{pct(r.value, 2)}</td>
                       <td style={{ padding: "8px 10px", textAlign: "right", color: "#555" }}>{m.expectedHits.toFixed(0)} / {n.toLocaleString()}</td>
@@ -233,9 +238,9 @@ export function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: stri
             </table>
           </div>
           <div style={{ padding: PAD_BODY, borderTop: `1px solid ${BORDER_SUBTLE}`, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", background: BG_HEADER }}>
-            <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.06em", textTransform: "uppercase" }}>Most likely finish</div>
+            <div style={{ fontSize: 10, color: TEXT_SUBTLE, letterSpacing: "0.06em", textTransform: "uppercase" }}>Most likely finish</div>
             <div style={{ fontSize: 12, fontWeight: 600 }}>
-              {likelyOutcome?.label || "N/A"} <span style={{ fontSize: 10, color: "#666", fontWeight: 500 }}>({pct((likelyOutcome?.p || 0) * 100, 2)})</span>
+              {likelyOutcome?.label || "N/A"} <span style={{ fontSize: 10, color: TEXT_MUTED, fontWeight: 500 }}>({pct((likelyOutcome?.p || 0) * 100, 2)})</span>
             </div>
           </div>
         </>
@@ -334,16 +339,16 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
     setLoading(false);
   };
 
-  const selectStyle = { flex: 1, height: 30, background: "#fff", border: `1px solid ${BORDER_OUTER}`, fontSize: 11, padding: "0 8px", appearance: "none" as const, cursor: "pointer" };
+  const selectStyle = { flex: 1, height: 30, background: SURFACE, border: `1px solid ${BORDER_OUTER}`, fontSize: 11, padding: "0 8px", appearance: "none" as const, cursor: "pointer" };
 
   return (
-    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: "#fff" }}>
+    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: "#666" }}>Head-to-head win probability from the ML ensemble (LR + XGBoost + LightGBM). Signal breakdown shows which factors favor each team. Right panel tests how injuries, hot streaks, and pace changes shift the odds.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Head-to-head win probability from the ML ensemble (LR + XGBoost + LightGBM). Signal breakdown shows which factors favor each team. Right panel tests how injuries, hot streaks, and pace changes shift the odds.</div>
       </div>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, display: "flex", gap: 10, alignItems: "center" }}>
         <select value={a} onChange={(e) => setA(e.target.value)} style={selectStyle}>{allTeams.map((team) => <option key={team}>{team}</option>)}</select>
-        <span style={{ fontSize: 11, color: "#999" }}>vs</span>
+        <span style={{ fontSize: 11, color: TEXT_SUBTLE }}>vs</span>
         <select value={b} onChange={(e) => setB(e.target.value)} style={selectStyle}>{allTeams.map((team) => <option key={team}>{team}</option>)}</select>
         <button onClick={run} disabled={loading || a === b} style={{ height: 30, padding: "0 16px", background: "#000", color: "#fff", border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{loading ? "..." : "ANALYZE"}</button>
       </div>
@@ -352,8 +357,8 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
           <div style={{ borderRight: `1px solid ${BORDER_INNER}` }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: `1px solid ${BORDER_SUBTLE}` }}>
               {[{ name: a, prob: matchup.win_prob_a, score: matchup.score_a }, { name: b, prob: matchup.win_prob_b, score: matchup.score_b }].map(({ name, prob, score }, i) => (
-                <div key={name} style={{ padding: "16px", borderRight: i === 0 ? `1px solid ${BORDER_SUBTLE}` : "none", background: prob > 50 ? BG_ALT : "#fff" }}>
-                  <div style={{ fontSize: 10, color: "#888", marginBottom: 4 }}>{name}</div>
+                <div key={name} style={{ padding: "16px", borderRight: i === 0 ? `1px solid ${BORDER_SUBTLE}` : "none", background: prob > 50 ? BG_ALT : SURFACE }}>
+                  <div style={{ fontSize: 10, color: TEXT_SUBTLE, marginBottom: 4 }}>{name}</div>
                   <div style={{ fontSize: 36, fontWeight: 300, lineHeight: 1 }}>{prob.toFixed(1)}%</div>
                   {score && <div title="Simulated final score from the model" style={{ fontSize: 10, color: "#bbb", marginTop: 4, cursor: "help" }}>sim: {score}</div>}
                   {prob > 50 && <div style={{ fontSize: 9, fontWeight: 600, marginTop: 8, letterSpacing: "0.1em" }}>PROJECTED WINNER</div>}
@@ -361,20 +366,20 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
               ))}
             </div>
             {matchup.score_note && (
-              <div style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER_SUBTLE}`, fontSize: 10, color: "#888" }}>
+              <div style={{ padding: "8px 16px", borderBottom: `1px solid ${BORDER_SUBTLE}`, fontSize: 10, color: TEXT_SUBTLE }}>
                 {matchup.score_note}
               </div>
             )}
             {disagree && (
               <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER_SUBTLE}` }}>
-                <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: "#888", marginBottom: 4 }}>SIGNAL BREAKDOWN</div>
+                <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: TEXT_SUBTLE, marginBottom: 4 }}>SIGNAL BREAKDOWN</div>
                 <div style={{ fontSize: 8, color: "#bbb", marginBottom: 10 }}>How each stat category favors one team — bar direction and value show deviation from 50/50</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px 20px" }}>
                   {Object.entries(disagree.signals).map(([key, value]: any) => {
                     const adv = value - 50;
                     return (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 9, color: "#888", minWidth: 72 }}>{key.replace(/_/g, " ")}</span>
+                        <span style={{ fontSize: 9, color: TEXT_SUBTLE, minWidth: 72 }}>{key.replace(/_/g, " ")}</span>
                         <div style={{ flex: 1, height: 2, background: BORDER_SUBTLE, position: "relative" }}>
                           <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "#bbb" }} />
                           <div style={{ position: "absolute", height: "100%", background: "#000", left: adv >= 0 ? "50%" : `${50 + adv}%`, width: `${Math.abs(adv)}%` }} />
@@ -388,7 +393,7 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
             )}
             {comps?.comps && (
               <div style={{ padding: "12px 16px" }}>
-                <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: "#888", marginBottom: 8 }}>HISTORICAL COMPS — {a}-analog won {((comps.historical_win_rate || 0) * 100).toFixed(0)}% of {comps.comps.length} similar games</div>
+                <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: TEXT_SUBTLE, marginBottom: 8 }}>HISTORICAL COMPS — {a}-analog won {((comps.historical_win_rate || 0) * 100).toFixed(0)}% of {comps.comps.length} similar games</div>
                 {comps.comps.slice(0, 4).map((comp: any, i: number) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: `1px solid ${BORDER_SUBTLE}`, fontSize: 10 }}>
                     <span style={{ color: "#ccc", minWidth: 30 }}>{comp.season}</span>
@@ -403,7 +408,7 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
           </div>
           <div>
             <div style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER_SUBTLE}`, background: BG_HEADER }}>
-              <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: "#888" }}>WHAT IF — {a} WIN PROBABILITY</div>
+              <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: TEXT_SUBTLE }}>WHAT IF — {a} WIN PROBABILITY</div>
               <div style={{ fontSize: 9, color: "#aaa", marginTop: 2 }}>How {a}&apos;s odds shift under different game-day scenarios</div>
             </div>
             {whatif.map((result: any, i: number) => {
@@ -414,7 +419,7 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
               const deltaColor = delta > 1.5 ? "#16a34a" : delta < -1.5 ? "#dc2626" : "#9ca3af";
               const barMax = Math.max(...whatif.map((r: any) => Math.abs(r.new_prob - base)), 1);
               return (
-                <div key={i} style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_SUBTLE}`, background: isBase ? BG_ALT : "#fff" }}>
+                <div key={i} style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_SUBTLE}`, background: isBase ? BG_ALT : SURFACE }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 11, fontWeight: isBase ? 700 : 500, color: isBase ? "#111" : "#333" }}>{result.scenario}</div>
@@ -432,7 +437,7 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
                   </div>
                   {!isBase && (
                     <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
-                      <div style={{ flex: 1, height: 4, background: "#f0f0f0", borderRadius: 14, position: "relative", overflow: "hidden" }}>
+                      <div style={{ flex: 1, height: 4, background: PROGRESS_TRACK, borderRadius: 14, position: "relative", overflow: "hidden" }}>
                         <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "#d4d4d4" }} />
                         {delta !== 0 && (
                           <div style={{
@@ -473,7 +478,7 @@ export function FirstFourSection({ sim }: { sim: SimState }) {
   if (games.length === 0) return null;
 
   return (
-    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: "#fff" }}>
+    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
         {games.map((game: any, i: number) => {
           const pa = ff[game.team_a] || 50;
@@ -484,7 +489,7 @@ export function FirstFourSection({ sim }: { sim: SimState }) {
           const winner = pA >= pB ? game.team_a : game.team_b;
           return (
             <div key={i} style={{ padding: "12px 14px", borderRight: i % 2 === 0 ? `1px solid ${BORDER_INNER}` : "none", borderBottom: i < 2 ? `1px solid ${BORDER_INNER}` : "none" }}>
-              <div style={{ fontSize: 9, color: "#888", marginBottom: 8 }}>{game.region} {game.seed}-seed — winner plays {game.plays}</div>
+              <div style={{ fontSize: 9, color: TEXT_SUBTLE, marginBottom: 8 }}>{game.region} {game.seed}-seed — winner plays {game.plays}</div>
               {[{ name: game.team_a, p: pA }, { name: game.team_b, p: pB }].map(({ name, p: probability }) => (
                 <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                   <span style={{ flex: 1, fontSize: 11, fontWeight: name === winner ? 600 : 400, color: name === winner ? "#000" : "#999" }}>{name}</span>
@@ -522,9 +527,9 @@ export function ModelVsMarket({ sim }: { sim: SimState }) {
   const maxModel = Math.max(...rows.map((row) => row.modelPct), 1);
 
   return (
-    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: "#fff" }}>
+    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: "#666" }}>Where the simulation disagrees with Vegas. MODEL = your sim&apos;s championship % (updates each run). VEGAS = implied % from pre-tournament futures (frozen at Selection Sunday). EDGE = difference — positive means the model is more bullish.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Where the simulation disagrees with Vegas. MODEL = your sim&apos;s championship % (updates each run). VEGAS = implied % from pre-tournament futures (frozen at Selection Sunday). EDGE = difference — positive means the model is more bullish.</div>
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
@@ -540,7 +545,7 @@ export function ModelVsMarket({ sim }: { sim: SimState }) {
             {rows.slice(0, 16).map((row, i) => {
               const edgeColor = row.edge > 2 ? "#000" : row.edge < -2 ? "#999" : "#ccc";
               return (
-                <tr key={row.name} style={{ borderBottom: `1px solid ${BORDER_SUBTLE}`, background: i % 2 === 0 ? "#fff" : BG_HEADER }}>
+                <tr key={row.name} style={{ borderBottom: `1px solid ${BORDER_SUBTLE}`, background: i % 2 === 0 ? SURFACE : BG_HEADER }}>
                   <td style={{ padding: "6px 10px", whiteSpace: "nowrap" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <Seed n={row.seed} />
@@ -549,13 +554,13 @@ export function ModelVsMarket({ sim }: { sim: SimState }) {
                   </td>
                   <td style={{ padding: "6px 8px", textAlign: "center" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
-                      <div style={{ width: 60, height: 4, background: "#f0f0f0", borderRadius: 14, overflow: "hidden" }}>
+                      <div style={{ width: 60, height: 4, background: PROGRESS_TRACK, borderRadius: 14, overflow: "hidden" }}>
                         <div style={{ width: `${(row.modelPct / maxModel) * 100}%`, height: "100%", background: "#000", borderRadius: 14 }} />
                       </div>
                       <span style={{ minWidth: 40 }}>{pct(row.modelPct, 1)}</span>
                     </div>
                   </td>
-                  <td style={{ padding: "6px 8px", textAlign: "center", color: "#666" }}>{pct(row.vegasPct, 1)}</td>
+                  <td style={{ padding: "6px 8px", textAlign: "center", color: TEXT_MUTED }}>{pct(row.vegasPct, 1)}</td>
                   <td style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600, color: edgeColor }}>
                     {row.edge > 0 ? "+" : ""}{pct(row.edge, 1)}
                   </td>
@@ -582,9 +587,9 @@ export function RegionDifficulty({ sim }: { sim: SimState }) {
   const maxChamp = Math.max(...stats.map((s: any) => s.total_championship_pct), 1);
 
   return (
-    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: "#fff" }}>
+    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: "#666" }}>Which regions are stacked and which have soft paths to the Final Four. Efficiency margin is KenPom-style (points per 100 possessions above average). Combined title odds = sum of all championship %s in the region.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Which regions are stacked and which have soft paths to the Final Four. Efficiency margin is KenPom-style (points per 100 possessions above average). Combined title odds = sum of all championship %s in the region.</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)" }}>
         {stats.map((stat: any, i: number) => {
@@ -595,30 +600,30 @@ export function RegionDifficulty({ sim }: { sim: SimState }) {
             <div key={stat.region} style={{ padding: "14px 16px", borderRight: i < 3 ? `1px solid ${BORDER_INNER}` : "none" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 700 }}>{stat.region.toUpperCase()}</div>
-                {label && <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: "0.08em", padding: "2px 6px", border: `1px solid ${BORDER_OUTER}`, background: rank === 1 ? "#000" : "#fff", color: rank === 1 ? "#fff" : "#000", alignSelf: "flex-start" }}>{label}</span>}
+                {label && <span style={{ fontSize: 8, fontWeight: 600, letterSpacing: "0.08em", padding: "2px 6px", border: `1px solid ${BORDER_OUTER}`, background: rank === 1 ? "#000" : SURFACE, color: rank === 1 ? "#fff" : TEXT, alignSelf: "flex-start" }}>{label}</span>}
               </div>
-              <div style={{ fontSize: 9, color: "#888", marginBottom: 4 }}>Avg. efficiency margin</div>
+              <div style={{ fontSize: 9, color: TEXT_SUBTLE, marginBottom: 4 }}>Avg. efficiency margin</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <div style={{ flex: 1, height: 4, background: "#f0f0f0", borderRadius: 14, overflow: "hidden" }}>
+                <div style={{ flex: 1, height: 4, background: PROGRESS_TRACK, borderRadius: 14, overflow: "hidden" }}>
                   <div style={{ width: `${(Math.abs(stat.avg_em) / maxEM) * 100}%`, height: "100%", background: "#000", borderRadius: 14 }} />
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, minWidth: 32 }}>{stat.avg_em > 0 ? "+" : ""}{stat.avg_em}</span>
               </div>
-              <div style={{ fontSize: 9, color: "#888", marginBottom: 4 }}>Combined title odds</div>
+              <div style={{ fontSize: 9, color: TEXT_SUBTLE, marginBottom: 4 }}>Combined title odds</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <div style={{ flex: 1, height: 4, background: "#f0f0f0", borderRadius: 14, overflow: "hidden" }}>
+                <div style={{ flex: 1, height: 4, background: PROGRESS_TRACK, borderRadius: 14, overflow: "hidden" }}>
                   <div style={{ width: `${(difficulty / maxChamp) * 100}%`, height: "100%", background: rank <= 2 ? "#000" : "#bbb", borderRadius: 14 }} />
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, minWidth: 32 }}>{pct(difficulty, 0)}</span>
               </div>
-              <div style={{ fontSize: 9, color: "#888", marginBottom: 6 }}>Top seeds</div>
+              <div style={{ fontSize: 9, color: TEXT_SUBTLE, marginBottom: 6 }}>Top seeds</div>
               {stat.top_seeds.map((team: any) => (
                 <div key={team.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", borderBottom: `1px solid ${BORDER_SUBTLE}` }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                     <Seed n={team.seed} />
                     <span style={{ fontSize: 10, fontWeight: 500 }}>{team.name}</span>
                   </span>
-                  <span style={{ fontSize: 9, color: "#888" }}>{pct(team.championship_odds_pct, 1)}</span>
+                  <span style={{ fontSize: 9, color: TEXT_SUBTLE }}>{pct(team.championship_odds_pct, 1)}</span>
                 </div>
               ))}
             </div>
@@ -644,9 +649,9 @@ export function SeedHistory({ sim }: { sim: SimState }) {
     .sort((a, b) => a.seed - b.seed);
 
   return (
-    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: "#fff" }}>
+    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: "#666" }}>Historical first-round win rate by seed (1985–2024, NCAA tournament). Compare this year&apos;s model-predicted upset chances against how often each seed actually wins.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Historical first-round win rate by seed (1985–2024, NCAA tournament). Compare this year&apos;s model-predicted upset chances against how often each seed actually wins.</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
         <div style={{ padding: "14px 16px", borderRight: `1px solid ${BORDER_INNER}` }}>
@@ -654,7 +659,7 @@ export function SeedHistory({ sim }: { sim: SimState }) {
             {entries.map(({ seed, rate }) => (
               <div key={seed} style={{ display: "grid", gridTemplateColumns: "28px 1fr 44px", alignItems: "center", gap: 8 }}>
                 <Seed n={seed} />
-                <div style={{ height: 5, background: "#f0f0f0", borderRadius: 14, overflow: "hidden" }}>
+                <div style={{ height: 5, background: PROGRESS_TRACK, borderRadius: 14, overflow: "hidden" }}>
                   <div style={{ width: `${rate * 100}%`, height: "100%", background: rate > 0.8 ? "#000" : rate > 0.5 ? "#555" : rate > 0.3 ? "#999" : "#ccc", borderRadius: 14 }} />
                 </div>
                 <span style={{ fontSize: 10, fontWeight: rate > 0.5 ? 600 : 400, textAlign: "right" }}>{(rate * 100).toFixed(0)}%</span>
@@ -663,7 +668,7 @@ export function SeedHistory({ sim }: { sim: SimState }) {
           </div>
         </div>
         <div style={{ padding: "14px 16px" }}>
-          <div style={{ fontSize: 9, letterSpacing: "0.1em", color: "#888", marginBottom: 10, textTransform: "uppercase" }}>This year&apos;s upset candidates vs history</div>
+          <div style={{ fontSize: 9, letterSpacing: "0.1em", color: TEXT_SUBTLE, marginBottom: 10, textTransform: "uppercase" }}>This year&apos;s upset candidates vs history</div>
           {upsets.map((upset: any, i: number) => {
             const historicalUpsetRate = 1 - (history[String(upset.dog_seed)] || 0);
             return (
@@ -672,7 +677,7 @@ export function SeedHistory({ sim }: { sim: SimState }) {
                   <span style={{ fontSize: 10, fontWeight: 600 }}>({upset.dog_seed}) {upset.underdog} over ({upset.fav_seed}) {upset.favorite}</span>
                   <span style={{ fontSize: 10, fontWeight: 600 }}>{pct(upset.upset_prob, 0)}</span>
                 </div>
-                <div style={{ fontSize: 9, color: "#888" }}>
+                <div style={{ fontSize: 9, color: TEXT_SUBTLE }}>
                   Historical: {upset.dog_seed}-seeds win {(historicalUpsetRate * 100).toFixed(0)}% of R64 games
                   {upset.upset_prob > historicalUpsetRate * 100 + 5 && (
                     <span style={{ color: "#000", fontWeight: 600 }}> — model sees ABOVE-average upset chance</span>
@@ -713,9 +718,9 @@ export function BracketValuePicks({ sim, teamsCatalog }: { sim: SimState; teamsC
   if (picks.length === 0) return null;
 
   return (
-    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: "#fff" }}>
+    <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: "#666" }}>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>
           Mid-seeds and underdogs whose simulated championship odds significantly beat their historical seed average — high-ceiling bracket picks.
         </div>
       </div>
@@ -736,7 +741,7 @@ export function BracketValuePicks({ sim, teamsCatalog }: { sim: SimState; teamsC
                 </div>
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: hot ? "#111" : "#444" }}>{multiplier}x</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: hot ? TEXT : TEXT_MUTED }}>{multiplier}x</div>
                 <div style={{ fontSize: 8, color: hot ? "#16a34a" : "#9ca3af", fontWeight: 600 }}>vs seed avg</div>
               </div>
             </div>

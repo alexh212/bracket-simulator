@@ -3,10 +3,16 @@
 import { useEffect, useState, useCallback } from "react";
 import type { RealGame, RealResults } from "@/lib/api";
 import { getResults } from "@/lib/api";
+import { BORDER_OUTER, SURFACE, TEXT, TEXT_MUTED, TEXT_SUBTLE } from "@/components/app/shared";
 
 interface TickerProps {
   onImportResults?: (picks: Record<string, string>, count: number) => void;
 }
+
+/** Upset chips stay amber; winner reads in solid black, loser in one muted tone (theme vars are wrong on light bg). */
+const UPSET_WIN = "#111111";
+const UPSET_LOSE = "#57534e";
+const UPSET_DASH = "#78716c";
 
 function GameChip({ game }: { game: RealGame }) {
   const aWon = game.winner === game.team_a;
@@ -16,15 +22,19 @@ function GameChip({ game }: { game: RealGame }) {
     (bWon && game.seed_b > game.seed_a)
   );
 
+  const row = (won: boolean) =>
+    isUpset ? (won ? UPSET_WIN : UPSET_LOSE) : won ? TEXT : TEXT_SUBTLE;
+  const seedParen = (won: boolean) => (isUpset ? row(won) : won ? TEXT_MUTED : TEXT_SUBTLE);
+
   return (
     <div style={{
       display: "inline-flex",
       alignItems: "center",
       gap: 0,
       padding: "4px 10px",
-      background: isUpset ? "#fef3c7" : "#fff",
+      background: isUpset ? "#fef3c7" : "var(--chip-bg)",
       borderRadius: 8,
-      border: `1px solid ${isUpset ? "#fbbf24" : "#e5e7eb"}`,
+      border: `1px solid ${isUpset ? "#fbbf24" : "var(--chip-border)"}`,
       fontSize: 11,
       whiteSpace: "nowrap",
       flexShrink: 0,
@@ -46,20 +56,20 @@ function GameChip({ game }: { game: RealGame }) {
       )}
       <span style={{
         fontWeight: aWon ? 700 : 400,
-        color: aWon ? "#111" : "#9ca3af",
+        color: row(aWon),
       }}>
-        <span style={{ fontSize: 9, color: aWon ? "#6b7280" : "#d1d5db" }}>({game.seed_a})</span>{" "}
+        <span style={{ fontSize: 9, color: seedParen(aWon) }}>({game.seed_a})</span>{" "}
         {game.team_a}{" "}
         <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{game.score_a}</span>
       </span>
-      <span style={{ margin: "0 6px", color: "#d1d5db", fontSize: 10 }}>—</span>
+      <span style={{ margin: "0 6px", color: isUpset ? UPSET_DASH : BORDER_OUTER, fontSize: 10 }}>—</span>
       <span style={{
         fontWeight: bWon ? 700 : 400,
-        color: bWon ? "#111" : "#9ca3af",
+        color: row(bWon),
       }}>
         <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{game.score_b}</span>{" "}
         {game.team_b}{" "}
-        <span style={{ fontSize: 9, color: bWon ? "#6b7280" : "#d1d5db" }}>({game.seed_b})</span>
+        <span style={{ fontSize: 9, color: seedParen(bWon) }}>({game.seed_b})</span>
       </span>
     </div>
   );
@@ -104,17 +114,17 @@ export default function Ticker({ onImportResults }: TickerProps) {
   return (
     <div style={{
       borderRadius: 10,
-      border: "1px solid #e5e7eb",
+      border: `1px solid ${BORDER_OUTER}`,
       overflow: "hidden",
       marginBottom: 12,
-      background: "#fafafa",
+      background: "var(--ticker-shell-bg)",
     }}>
       <div style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         padding: "5px 12px",
-        borderBottom: "1px solid #e5e7eb",
+        borderBottom: `1px solid ${BORDER_OUTER}`,
         background: "#111",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -127,11 +137,11 @@ export default function Ticker({ onImportResults }: TickerProps) {
           }}>
             Live Results
           </span>
-          <span style={{ fontSize: 9, color: "#9ca3af" }}>
+          <span style={{ fontSize: 9, color: TEXT_SUBTLE }}>
             {finalGames.length} games · {upsetCount} upset{upsetCount !== 1 ? "s" : ""}
           </span>
           {data?.tournament_status && (
-            <span style={{ fontSize: 9, color: "#6b7280" }}>
+            <span style={{ fontSize: 9, color: TEXT_MUTED }}>
               · {data.tournament_status}
             </span>
           )}
@@ -149,8 +159,8 @@ export default function Ticker({ onImportResults }: TickerProps) {
                 borderRadius: 6,
                 border: "none",
                 cursor: imported ? "default" : "pointer",
-                background: imported ? "#22c55e" : "#fff",
-                color: imported ? "#fff" : "#111",
+                background: imported ? "#22c55e" : SURFACE,
+                color: imported ? "#fff" : TEXT,
                 transition: "all 0.2s",
               }}
             >
