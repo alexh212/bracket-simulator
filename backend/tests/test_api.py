@@ -81,7 +81,8 @@ class TestMatchup:
         assert "win_prob_a" in body
         assert "score_note" in body
 
-    def test_matchup_with_valid_teams(self):
+    @patch("pipeline.calibrated_game_model.get_game_model", return_value=None)
+    def test_matchup_without_model_falls_back(self, _mock_gm):
         r = client.post("/matchup", json={"team_a": TEAM_A, "team_b": TEAM_B})
         assert r.status_code == 200
         body = r.json()
