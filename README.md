@@ -16,7 +16,7 @@ Lock in your picks, adjust the variance, and watch championship odds shift in re
  
 ## Tech stack
  
-FastAPI, Python, NumPy, scikit-learn, XGBoost, LightGBM, Next.js, TypeScript, React, GitHub Actions, Render
+FastAPI, Uvicorn, Pydantic, NumPy, Pandas, SciPy, scikit-learn, XGBoost, LightGBM, Joblib, Next.js, React, TypeScript, Tailwind, Vitest, SSE, GitHub Actions, Render
  
 ## Live demo
  
