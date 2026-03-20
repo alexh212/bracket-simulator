@@ -526,3 +526,63 @@ def model_log(request: Request):
         "rebuild_enabled": ALLOW_MODEL_LOG_REBUILD,
         "source": "precomputed_report" if REPORT_PATH.exists() else "runtime_message",
     }
+
+
+# ── ESPN Perfect Bracket ──────────────────────────────────────────────────────
+_perfect_bracket_cache: Optional[dict] = None
+_perfect_bracket_ts: float = 0.0
+_perfect_bracket_lock = threading.Lock()
+_PERFECT_BRACKET_TTL = 300.0  # 5 min
+
+def _fetch_perfect_bracket() -> dict:
+    """Scrape ESPN perfect bracket page for remaining count + fallen count."""
+    import urllib.request, urllib.error
+    url = "https://www.espn.com/perfect-bracket/2026/mens/16"
+    req = urllib.request.Request(url, headers={"User-Agent": "bracket-simulator/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+    except Exception as exc:
+        logger.warning("Failed to fetch ESPN perfect bracket: %s", exc)
+        return {"perfect_remaining": None, "brackets_fallen": None}
+
+    remaining = None
+    fallen = None
+
+    m_img = re.search(r"remaining/(\d+)\.png", html)
+    if m_img:
+        try:
+            remaining = int(m_img.group(1))
+        except ValueError:
+            pass
+
+    if remaining is None:
+        m_data = re.search(r"(?:perfectBrackets|bracketsRemaining)[\":](\d+)", html, re.IGNORECASE)
+        if m_data:
+            try:
+                remaining = int(m_data.group(1))
+            except ValueError:
+                pass
+
+    m_fallen = re.search(r"bracketsFallen[\":](\d+)", html)
+    if m_fallen:
+        try:
+            fallen = int(m_fallen.group(1))
+        except ValueError:
+            pass
+
+    return {"perfect_remaining": remaining, "brackets_fallen": fallen}
+
+
+@app.get("/perfect-bracket")
+def perfect_bracket():
+    global _perfect_bracket_cache, _perfect_bracket_ts
+    now = time.time()
+    with _perfect_bracket_lock:
+        if _perfect_bracket_cache is not None and now - _perfect_bracket_ts < _PERFECT_BRACKET_TTL:
+            return _perfect_bracket_cache
+    data = _fetch_perfect_bracket()
+    with _perfect_bracket_lock:
+        _perfect_bracket_cache = data
+        _perfect_bracket_ts = now
+    return data
