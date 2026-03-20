@@ -18,6 +18,9 @@ logger = logging.getLogger("bracket_api")
 ROOT_DIR = Path(__file__).resolve().parent
 REPORT_PATH = ROOT_DIR / "reports" / "model_pipeline_results.json"
 RESULTS_PATH = ROOT_DIR / "data" / "real_results.json"
+# Default on so demos (e.g. Render) pick up today’s games without extra env. Opt out: ENABLE_LIVE_SCORES=0
+_LIVE_SCORES_RAW = os.getenv("ENABLE_LIVE_SCORES", "1").strip().lower()
+ENABLE_LIVE_SCORES = _LIVE_SCORES_RAW not in {"0", "false", "no", "off"}
 
 MAX_N_SIMS = 50_000
 MAX_JSON_PARAM_LEN = 10_000
@@ -284,14 +287,33 @@ class WhatIfRequest(BaseModel):
 def health():
     return {"status": "ok", "teams": len(CLEAN)}
 
-@app.get("/results")
-def results():
+def _load_static_results() -> dict:
     if not RESULTS_PATH.exists():
         return {"last_updated": None, "tournament_status": "Not started", "games": []}
     try:
         return json.loads(RESULTS_PATH.read_text())
     except (json.JSONDecodeError, OSError):
         return {"last_updated": None, "tournament_status": "Error loading results", "games": []}
+
+
+@app.get("/results")
+def results():
+    payload = _load_static_results()
+    if not ENABLE_LIVE_SCORES:
+        payload["live_scores_enabled"] = False
+        return payload
+    try:
+        from services.live_scores import fetch_espn_near_today, merge_static_with_espn
+
+        espn = fetch_espn_near_today(ttl_sec=45.0)
+        merged = merge_static_with_espn(payload, espn)
+        merged["live_scores_enabled"] = True
+        return merged
+    except Exception:
+        logger.exception("Live score merge failed; returning static results")
+        payload["live_scores_enabled"] = True
+        payload["live_scores_error"] = True
+        return payload
 
 @app.get("/teams")
 def teams():

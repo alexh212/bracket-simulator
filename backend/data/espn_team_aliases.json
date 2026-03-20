@@ -1,0 +1,11 @@
+{
+  "Ohio St.": ["Ohio State"],
+  "St. John's": ["St. John's", "St Johns"],
+  "Miami FL": ["Miami", "Miami (FL)"],
+  "NC State": ["North Carolina State", "N.C. State"],
+  "UConn": ["Connecticut"],
+  "USC": ["Southern California"],
+  "BYU": ["Brigham Young"],
+  "SMU": ["Southern Methodist"],
+  "LIU": ["Long Island", "LIU"]
+}

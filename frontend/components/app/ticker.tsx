@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { RealGame, RealResults } from "@/lib/api";
-import { getResults } from "@/lib/api";
+import { RESULTS_POLL_MS } from "@/lib/api";
 import { BORDER_OUTER, SURFACE, TEXT, TEXT_MUTED, TEXT_SUBTLE } from "@/components/app/shared";
 
 interface TickerProps {
+  results: RealResults | null;
   onImportResults?: (picks: Record<string, string>, count: number) => void;
 }
 
@@ -15,30 +16,52 @@ const UPSET_LOSE = "#57534e";
 const UPSET_DASH = "#78716c";
 
 function GameChip({ game }: { game: RealGame }) {
-  const aWon = game.winner === game.team_a;
-  const bWon = game.winner === game.team_b;
+  const isLive = game.status === "live";
+  const aWonFinal = game.status === "final" && game.winner === game.team_a;
+  const bWonFinal = game.status === "final" && game.winner === game.team_b;
+  const aLeadsLive = isLive && game.score_a > game.score_b;
+  const bLeadsLive = isLive && game.score_b > game.score_a;
+  const aStrong = aWonFinal || aLeadsLive;
+  const bStrong = bWonFinal || bLeadsLive;
+
   const isUpset = game.status === "final" && (
-    (aWon && game.seed_a > game.seed_b) ||
-    (bWon && game.seed_b > game.seed_a)
+    (aWonFinal && game.seed_a > game.seed_b) ||
+    (bWonFinal && game.seed_b > game.seed_a)
   );
 
-  const row = (won: boolean) =>
-    isUpset ? (won ? UPSET_WIN : UPSET_LOSE) : won ? TEXT : TEXT_SUBTLE;
-  const seedParen = (won: boolean) => (isUpset ? row(won) : won ? TEXT_MUTED : TEXT_SUBTLE);
+  const row = (strong: boolean) => {
+    if (isUpset) return strong ? UPSET_WIN : UPSET_LOSE;
+    if (isLive) return strong ? TEXT : TEXT_SUBTLE;
+    return strong ? TEXT : TEXT_SUBTLE;
+  };
+  const seedParen = (strong: boolean) => {
+    if (isUpset) return row(strong);
+    if (isLive) return strong ? TEXT_MUTED : TEXT_SUBTLE;
+    return strong ? TEXT_MUTED : TEXT_SUBTLE;
+  };
+
+  const shell = isUpset
+    ? { background: "#fef3c7" as const, border: "#fbbf24" as const }
+    : isLive
+      ? { background: "#ecfdf5" as const, border: "#22c55e" as const }
+      : { background: "var(--chip-bg)" as const, border: "var(--chip-border)" as const };
 
   return (
-    <div style={{
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 0,
-      padding: "4px 10px",
-      background: isUpset ? "#fef3c7" : "var(--chip-bg)",
-      borderRadius: 8,
-      border: `1px solid ${isUpset ? "#fbbf24" : "var(--chip-border)"}`,
-      fontSize: 11,
-      whiteSpace: "nowrap",
-      flexShrink: 0,
-    }}>
+    <div
+      title={isLive && game.status_detail ? game.status_detail : undefined}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 0,
+        padding: "4px 10px",
+        background: shell.background,
+        borderRadius: 8,
+        border: `1px solid ${shell.border}`,
+        fontSize: 11,
+        whiteSpace: "nowrap",
+        flexShrink: 0,
+      }}
+    >
       {game.status === "final" && (
         <span style={{
           fontSize: 8,
@@ -54,62 +77,77 @@ function GameChip({ game }: { game: RealGame }) {
           {isUpset ? "UPSET" : "FINAL"}
         </span>
       )}
+      {isLive && (
+        <span style={{
+          fontSize: 8,
+          fontWeight: 700,
+          color: "#fff",
+          background: "#16a34a",
+          borderRadius: 3,
+          padding: "1px 4px",
+          marginRight: 8,
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+        }}>
+          LIVE
+        </span>
+      )}
       <span style={{
-        fontWeight: aWon ? 700 : 400,
-        color: row(aWon),
+        fontWeight: aStrong ? 700 : 400,
+        color: row(aStrong),
       }}>
-        <span style={{ fontSize: 9, color: seedParen(aWon) }}>({game.seed_a})</span>{" "}
+        <span style={{ fontSize: 9, color: seedParen(aStrong) }}>({game.seed_a})</span>{" "}
         {game.team_a}{" "}
         <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{game.score_a}</span>
       </span>
       <span style={{ margin: "0 6px", color: isUpset ? UPSET_DASH : BORDER_OUTER, fontSize: 10 }}>—</span>
       <span style={{
-        fontWeight: bWon ? 700 : 400,
-        color: row(bWon),
+        fontWeight: bStrong ? 700 : 400,
+        color: row(bStrong),
       }}>
         <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{game.score_b}</span>{" "}
         {game.team_b}{" "}
-        <span style={{ fontSize: 9, color: seedParen(bWon) }}>({game.seed_b})</span>
+        <span style={{ fontSize: 9, color: seedParen(bStrong) }}>({game.seed_b})</span>
       </span>
     </div>
   );
 }
 
-export default function Ticker({ onImportResults }: TickerProps) {
-  const [data, setData] = useState<RealResults | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function Ticker({ results, onImportResults }: TickerProps) {
   const [imported, setImported] = useState(false);
 
-  useEffect(() => {
-    getResults()
-      .then(setData)
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
+  const scrollGames = useMemo(
+    () => (results?.games || []).filter((g) => g.status === "final" || g.status === "live"),
+    [results],
+  );
+
+  const finalOnly = useMemo(
+    () => scrollGames.filter((g) => g.status === "final"),
+    [scrollGames],
+  );
+
+  const liveCount = scrollGames.length - finalOnly.length;
 
   const handleImport = useCallback(() => {
-    if (!data?.games.length || !onImportResults) return;
+    if (!results?.games.length || !onImportResults) return;
     const picks: Record<string, string> = {};
-    for (const g of data.games) {
+    for (const g of results.games) {
       if (g.status === "final" && g.winner) {
         picks[`${g.region}:${g.round}:${g.game_index}`] = g.winner;
       }
     }
     onImportResults(picks, Object.keys(picks).length);
     setImported(true);
-  }, [data, onImportResults]);
+  }, [results, onImportResults]);
 
-  if (loading) return null;
+  if (!results || scrollGames.length === 0) return null;
 
-  const finalGames = data?.games.filter(g => g.status === "final") || [];
-  if (finalGames.length === 0) return null;
-
-  const upsetCount = finalGames.filter(g => {
+  const upsetCount = finalOnly.filter((g) => {
     const aWon = g.winner === g.team_a;
     return (aWon && g.seed_a > g.seed_b) || (!aWon && g.seed_b > g.seed_a);
   }).length;
 
-  const tickerDuration = Math.max(20, finalGames.length * 3);
+  const tickerDuration = Math.max(20, scrollGames.length * 3);
 
   return (
     <div style={{
@@ -127,7 +165,7 @@ export default function Ticker({ onImportResults }: TickerProps) {
         borderBottom: `1px solid ${BORDER_OUTER}`,
         background: "#111",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{
             fontSize: 9,
             fontWeight: 700,
@@ -135,14 +173,20 @@ export default function Ticker({ onImportResults }: TickerProps) {
             letterSpacing: "0.12em",
             textTransform: "uppercase",
           }}>
-            Live Results
+            {results.live_scores_enabled ? "Scores" : "Results"}
           </span>
           <span style={{ fontSize: 9, color: TEXT_SUBTLE }}>
-            {finalGames.length} games · {upsetCount} upset{upsetCount !== 1 ? "s" : ""}
+            {finalOnly.length} final{liveCount > 0 ? ` · ${liveCount} live` : ""}
+            {finalOnly.length > 0 ? ` · ${upsetCount} upset${upsetCount !== 1 ? "s" : ""}` : ""}
           </span>
-          {data?.tournament_status && (
+          {results.tournament_status && (
             <span style={{ fontSize: 9, color: TEXT_MUTED }}>
-              · {data.tournament_status}
+              · {results.tournament_status}
+            </span>
+          )}
+          {results.live_scores_enabled && (
+            <span style={{ fontSize: 8, color: TEXT_SUBTLE, opacity: 0.85 }} title="Scores refresh about every minute while the page is open">
+              · auto-refresh ~{Math.round(RESULTS_POLL_MS / 1000)}s
             </span>
           )}
         </div>
@@ -164,7 +208,7 @@ export default function Ticker({ onImportResults }: TickerProps) {
                 transition: "all 0.2s",
               }}
             >
-              {imported ? `✓ ${finalGames.length} results locked` : "Lock results as picks →"}
+              {imported ? `✓ ${finalOnly.filter((g) => g.winner).length} results locked` : "Lock final scores as picks →"}
             </button>
           )}
         </div>
@@ -175,8 +219,8 @@ export default function Ticker({ onImportResults }: TickerProps) {
           className="ticker-track"
           style={{ "--ticker-duration": `${tickerDuration}s` } as React.CSSProperties}
         >
-          {[...finalGames, ...finalGames].map((g, i) => (
-            <div key={i} style={{ paddingLeft: i === 0 ? 12 : 8, paddingRight: 8 }}>
+          {[...scrollGames, ...scrollGames].map((g, i) => (
+            <div key={`${g.region}-${g.round}-${g.game_index}-${i}`} style={{ paddingLeft: i === 0 ? 12 : 8, paddingRight: 8 }}>
               <GameChip game={g} />
             </div>
           ))}

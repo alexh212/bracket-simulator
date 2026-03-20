@@ -12,7 +12,7 @@ Lock in your picks, adjust the variance, and watch championship odds shift in re
 - **ML model** — Logistic Regression, XGBoost, and LightGBM ensemble with isotonic calibration, trained on tournament data back to 2005
 - **Features** — KenPom efficiency, Elo ratings, betting lines, tempo, shooting splits, and 30+ engineered features, all frozen at selection time
 - **Streaming** — FastAPI SSE streams simulation progress to the frontend in real time
-- **Results ticker** — reads from an updatable results feed; import completed games as locked picks to simulate the remaining bracket
+- **Results ticker** — reads `/results` (static JSON and/or live merge); import final games as locked picks to simulate the remaining bracket
  
 ## Tech stack
  
@@ -39,6 +39,16 @@ npm install && npm run dev
 ```
  
 Set `NEXT_PUBLIC_API_URL` in `frontend/.env.local` if the frontend can't reach the API (default is `http://localhost:8001`).
+
+### Live scores (demo-friendly default)
+
+**`real_results.json`** still defines *which* matchups exist in your bracket. By default the API **merges in today’s (and adjacent days’) scores** from ESPN’s public scoreboard so the ticker can show **live and final** games during the tournament — no extra env on Render for a typical demo.
+
+- **Turn off** outbound fetches / merge (static file only): `ENABLE_LIVE_SCORES=0`
+- Matching uses **both team names** per row; extend **`backend/data/espn_team_aliases.json`** if a name doesn’t line up with ESPN.
+- The site **polls `/results` every 60s** while the tab is open.
+
+This is **best-effort**, not a licensed feed — fine for a personal demo; use a commercial provider if you need guarantees.
  
 ## Tests
  

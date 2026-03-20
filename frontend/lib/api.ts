@@ -4,6 +4,9 @@ import type { ModelInfo, SimRunConfig } from "@/components/app/types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
+/** How often the UI refetches `/results` (live + final scores). */
+export const RESULTS_POLL_MS = 60_000;
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, init);
   if (!response.ok) {
@@ -30,12 +33,18 @@ export interface RealGame {
   score_b: number;
   winner: string;
   status: "final" | "live" | "upcoming";
+  /** Clock / period when status is live (from scoreboard API) */
+  status_detail?: string;
 }
 
 export interface RealResults {
   last_updated: string | null;
   tournament_status: string;
   games: RealGame[];
+  live_scores_enabled?: boolean;
+  live_scores_matched?: number;
+  live_scores_error?: boolean;
+  live_scores_source?: string;
 }
 
 export const getResults = () => fetchJson<RealResults>("/results");

@@ -2,8 +2,7 @@
 import { useCallback, useEffect, useRef, useState, memo } from "react";
 
 import type { ForcedPicks, Game, Resolved, SimRunConfig, SimState, TeamOverrides } from "@/components/app/types";
-import type { RealGame } from "@/lib/api";
-import { getResults } from "@/lib/api";
+import { getResults, RESULTS_POLL_MS, type RealGame, type RealResults } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import {
   ACCENT,
@@ -1017,10 +1016,18 @@ export default function App() {
     toggleForcedPick,
   } = useSimulation();
 
-  const [realResults, setRealResults] = useState<RealGame[]>([]);
+  const [resultsPayload, setResultsPayload] = useState<RealResults | null>(null);
   useEffect(() => {
-    getResults().then(d => setRealResults(d.games || [])).catch(() => {});
+    const load = () =>
+      getResults()
+        .then(setResultsPayload)
+        .catch(() => setResultsPayload(null));
+    load();
+    const id = setInterval(load, RESULTS_POLL_MS);
+    return () => clearInterval(id);
   }, []);
+
+  const realResults = resultsPayload?.games ?? [];
 
   const simTeams = Object.keys(sim.predicted_bracket).length>0
     ? [...new Set(Object.values(sim.predicted_bracket).flatMap(rounds=>(rounds[0]||[]).flatMap((g:Game)=>[g.team_a,g.team_b])))].sort()
@@ -1061,7 +1068,7 @@ export default function App() {
         </div>
       </div>
 
-      <Ticker onImportResults={handleImportResults} />
+      <Ticker results={resultsPayload} onImportResults={handleImportResults} />
 
       <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,padding:12,marginBottom:14,background:SURFACE}}>
         <div className="hero-grid">
