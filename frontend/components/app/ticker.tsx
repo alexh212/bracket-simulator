@@ -10,11 +10,6 @@ interface TickerProps {
   onImportResults?: (picks: Record<string, string>, count: number) => void;
 }
 
-/** Upset chips stay amber; winner reads in solid black, loser in one muted tone (theme vars are wrong on light bg). */
-const UPSET_WIN = "#111111";
-const UPSET_LOSE = "#57534e";
-const UPSET_DASH = "#78716c";
-
 function GameChip({ game }: { game: RealGame }) {
   const isLive = game.status === "live";
   const aWonFinal = game.status === "final" && game.winner === game.team_a;
@@ -30,21 +25,21 @@ function GameChip({ game }: { game: RealGame }) {
   );
 
   const row = (strong: boolean) => {
-    if (isUpset) return strong ? UPSET_WIN : UPSET_LOSE;
-    if (isLive) return strong ? TEXT : TEXT_SUBTLE;
+    if (isUpset) return strong ? "var(--chip-upset-strong)" : "var(--chip-upset-weak)";
+    if (isLive) return strong ? "var(--chip-live-strong)" : "var(--chip-live-weak)";
     return strong ? TEXT : TEXT_SUBTLE;
   };
   const seedParen = (strong: boolean) => {
-    if (isUpset) return row(strong);
-    if (isLive) return strong ? TEXT_MUTED : TEXT_SUBTLE;
+    if (isUpset) return strong ? "var(--chip-upset-weak)" : "var(--chip-upset-dash)";
+    if (isLive) return strong ? "var(--chip-live-weak)" : "var(--chip-live-dash)";
     return strong ? TEXT_MUTED : TEXT_SUBTLE;
   };
 
   const shell = isUpset
-    ? { background: "#fef3c7" as const, border: "#fbbf24" as const }
+    ? { background: "var(--chip-upset-bg)", border: "var(--chip-upset-border)" }
     : isLive
-      ? { background: "#ecfdf5" as const, border: "#22c55e" as const }
-      : { background: "var(--chip-bg)" as const, border: "var(--chip-border)" as const };
+      ? { background: "var(--chip-live-bg)", border: "var(--chip-live-border)" }
+      : { background: "var(--chip-bg)", border: "var(--chip-border)" };
 
   return (
     <div
@@ -100,7 +95,7 @@ function GameChip({ game }: { game: RealGame }) {
         {game.team_a}{" "}
         <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{game.score_a}</span>
       </span>
-      <span style={{ margin: "0 6px", color: isUpset ? UPSET_DASH : BORDER_OUTER, fontSize: 10 }}>—</span>
+      <span style={{ margin: "0 6px", color: isUpset ? "var(--chip-upset-dash)" : isLive ? "var(--chip-live-dash)" : BORDER_OUTER, fontSize: 10 }}>—</span>
       <span style={{
         fontWeight: bStrong ? 700 : 400,
         color: row(bStrong),
