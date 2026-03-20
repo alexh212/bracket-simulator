@@ -47,7 +47,13 @@ export interface RealResults {
   live_scores_source?: string;
 }
 
+export interface PerfectBracket {
+  perfect_remaining: number | null;
+  brackets_fallen: number | null;
+}
+
 export const getResults = () => fetchJson<RealResults>("/results");
+export const getPerfectBracket = () => fetchJson<PerfectBracket>("/perfect-bracket");
 export const getTeams = () => fetchJson<Record<string, any>>("/teams");
 export const getModelInfo = () => fetchJson<ModelInfo>("/model-info");
 export const getModelLog = () => fetchJson<{ log: string }>("/model-log");

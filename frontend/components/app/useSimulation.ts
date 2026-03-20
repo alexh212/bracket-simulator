@@ -134,7 +134,7 @@ export function useSimulation() {
           bracketStarted: true,
         }));
         const champ = Object.entries(data.champion_pct as Record<string, number>).sort((a, b) => b[1] - a[1])[0];
-        setLog((prev) => [...prev, "", `complete — ${data.elapsed_sec}s`, `champion: ${champ?.[0]} ${champ?.[1].toFixed(1)}%`]);
+        setLog((prev) => [...prev, "", `complete ${data.elapsed_sec}s`, `champion: ${champ?.[0]} ${champ?.[1].toFixed(1)}%`]);
         setRunning(false);
         setPhase("done");
         es.close();

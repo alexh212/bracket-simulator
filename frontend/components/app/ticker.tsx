@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { RealGame, RealResults } from "@/lib/api";
 import { RESULTS_POLL_MS } from "@/lib/api";
-import { BORDER_OUTER, SURFACE, TEXT, TEXT_MUTED, TEXT_SUBTLE } from "@/components/app/shared";
+import { BORDER_OUTER, TEXT, TEXT_MUTED, TEXT_SUBTLE } from "@/components/app/shared";
 
 interface TickerProps {
   results: RealResults | null;
-  onImportResults?: (picks: Record<string, string>, count: number) => void;
 }
 
 function GameChip({ game }: { game: RealGame }) {
@@ -108,9 +107,7 @@ function GameChip({ game }: { game: RealGame }) {
   );
 }
 
-export default function Ticker({ results, onImportResults }: TickerProps) {
-  const [imported, setImported] = useState(false);
-
+export default function Ticker({ results }: TickerProps) {
   const scrollGames = useMemo(
     () => (results?.games || []).filter((g) => g.status === "final" || g.status === "live"),
     [results],
@@ -122,18 +119,6 @@ export default function Ticker({ results, onImportResults }: TickerProps) {
   );
 
   const liveCount = scrollGames.length - finalOnly.length;
-
-  const handleImport = useCallback(() => {
-    if (!results?.games.length || !onImportResults) return;
-    const picks: Record<string, string> = {};
-    for (const g of results.games) {
-      if (g.status === "final" && g.winner) {
-        picks[`${g.region}:${g.round}:${g.game_index}`] = g.winner;
-      }
-    }
-    onImportResults(picks, Object.keys(picks).length);
-    setImported(true);
-  }, [results, onImportResults]);
 
   if (!results || scrollGames.length === 0) return null;
 
@@ -183,28 +168,6 @@ export default function Ticker({ results, onImportResults }: TickerProps) {
             <span style={{ fontSize: 8, color: TEXT_SUBTLE, opacity: 0.85 }} title="Scores refresh about every minute while the page is open">
               · auto-refresh ~{Math.round(RESULTS_POLL_MS / 1000)}s
             </span>
-          )}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {onImportResults && (
-            <button
-              onClick={handleImport}
-              disabled={imported}
-              title="Lock all completed game winners as forced picks — your next simulation will use these real results and only simulate remaining games"
-              style={{
-                fontSize: 9,
-                fontWeight: 600,
-                padding: "3px 10px",
-                borderRadius: 6,
-                border: "none",
-                cursor: imported ? "default" : "pointer",
-                background: imported ? "#22c55e" : SURFACE,
-                color: imported ? "#fff" : TEXT,
-                transition: "all 0.2s",
-              }}
-            >
-              {imported ? `✓ ${finalOnly.filter((g) => g.winner).length} results locked` : "Lock final scores as picks →"}
-            </button>
           )}
         </div>
       </div>

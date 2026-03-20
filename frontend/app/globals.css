@@ -29,6 +29,10 @@
   --border-subtle: var(--border);
   --accent: #1a1a1a;
   --accent-soft: #f5f5f5;
+  --accent-primary: #16a34a;
+  --accent-primary-hover: #15803d;
+  --accent-primary-soft: rgba(22, 163, 74, 0.06);
+  --accent-primary-muted: rgba(22, 163, 74, 0.35);
   --progress-track: var(--bg-raised);
   --seed-border: var(--border-strong);
   --seed-top-bg: #1a1a1a;
@@ -82,6 +86,10 @@
   --border-subtle: var(--border);
   --accent: #ededed;
   --accent-soft: var(--bg-raised);
+  --accent-primary: #4ade80;
+  --accent-primary-hover: #86efac;
+  --accent-primary-soft: rgba(74, 222, 128, 0.1);
+  --accent-primary-muted: rgba(74, 222, 128, 0.3);
   --progress-track: var(--border-hover);
   --seed-border: var(--border-strong);
   --seed-top-bg: #ededed;
@@ -104,7 +112,7 @@
   --select-option-bg: var(--bg-surface);
   --select-option-fg: var(--text);
   --disabled-btn-bg: var(--border-hover);
-  --muted-bar: var(--border-strong);
+  --muted-bar: #444444;
   --skeleton-border: var(--border-active);
 }
 
@@ -218,6 +226,26 @@ select option {
   gap: 10px;
 }
 
+.banner-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.espn-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--border-outer);
+  background: var(--surface);
+}
+
+.espn-stats > div:first-child {
+  border-right: 1px solid var(--border-inner);
+}
+
 @media (max-width: 1080px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
@@ -228,6 +256,38 @@ select option {
   .insights-rail {
     position: static !important;
     top: auto !important;
+  }
+  .banner-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sim-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 640px) {
+  .sim-split {
+    grid-template-columns: 1fr;
+  }
+  .sim-split > div:first-child {
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .sim-config-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .sim-config-grid > div:first-child {
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .espn-stats {
+    grid-template-columns: 1fr;
+  }
+  .espn-stats > div:first-child {
+    border-right: none;
+    border-bottom: 1px solid var(--border-inner);
   }
 }
 
@@ -266,6 +326,31 @@ select option {
 .theme-toggle:hover {
   border-color: var(--border-strong);
   color: var(--text);
+}
+
+.hero-champion {
+  position: relative;
+  border-top: 2px solid var(--accent-primary) !important;
+}
+
+[data-theme="dark"] .hero-champion {
+  box-shadow: 0 0 30px var(--accent-primary-soft), inset 0 1px 0 rgba(74, 222, 128, 0.06);
+}
+
+.btn-accent {
+  background: var(--accent-primary-soft) !important;
+  border: 1px solid var(--accent-primary) !important;
+  color: var(--accent-primary) !important;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-accent:hover:not(:disabled) {
+  background: var(--accent-primary-muted) !important;
+}
+.btn-accent:disabled {
+  background: var(--disabled-btn-bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text-muted) !important;
+  box-shadow: none;
 }
 
 ::selection {

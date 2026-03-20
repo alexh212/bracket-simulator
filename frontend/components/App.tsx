@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, memo } from "react";
 
-import type { ForcedPicks, Game, Resolved, SimRunConfig, SimState, TeamOverrides } from "@/components/app/types";
-import { getResults, RESULTS_POLL_MS, type RealGame, type RealResults } from "@/lib/api";
+import type { ForcedPicks, Game, Resolved, SimState, TeamOverrides } from "@/components/app/types";
+import { getResults, getPerfectBracket, RESULTS_POLL_MS, type RealGame, type RealResults, type PerfectBracket } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import {
   ACCENT,
@@ -14,20 +14,17 @@ import {
   BORDER_SUBTLE,
   Collapse,
   GREEN,
-  GroupTitle,
-  PAD_BODY,
   PAD_HEADER,
   R64_ORDER,
   REGIONS,
-  ROUNDS,
-  SH,
-  SectionGap,
   Seed,
   SURFACE,
   TEXT,
   TEXT_MUTED,
   TEXT_SUBTLE,
   PROGRESS_TRACK,
+  ACCENT_PRIMARY,
+  ACCENT_PRIMARY_SOFT,
   pct,
   pickKey,
   toML,
@@ -49,14 +46,18 @@ import { useSimulation } from "@/components/app/useSimulation";
 import Ticker from "@/components/app/ticker";
 
 // ── Sim Controls ──────────────────────────────────────────────────────────────
-function SimControls({ running, onRun, assumptionCount, lockedPickCount }: {
+function SimControls({ running, onRun, assumptionCount, lockedPickCount, sim, logLines }: {
   running: boolean;
   onRun: (cfg: {n_sims:number; latent_sigma:number}) => void;
   assumptionCount: number;
   lockedPickCount: number;
+  sim: SimState;
+  logLines: string[];
 }) {
   const [nSims, setNSims] = useState(10000);
   const [sigma, setSigma] = useState(0.06);
+  const logRef = useRef<HTMLDivElement>(null);
+  useEffect(()=>{ if(logRef.current) logRef.current.scrollTop=logRef.current.scrollHeight; },[logLines]);
 
   const NSIMS_OPTS = [250,500,1000,2500,5000,10000,25000,50000];
   const nSimsIdx = Math.max(0, NSIMS_OPTS.indexOf(nSims));
@@ -68,75 +69,142 @@ function SimControls({ running, onRun, assumptionCount, lockedPickCount }: {
     0.12:"Chaotic"
   };
 
+  const progress = sim.total>0 ? sim.done/sim.total : 0;
+  const champ = top(sim.champion_pct,4);
+  const maxPct = champ[0]?.[1] || 1;
+  const hasRun = sim.done > 0 || sim.complete;
+
   return (
-    <div style={{padding:"18px 20px 20px",maxWidth:760,margin:"0 auto",display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{textAlign:"center",marginBottom:4}}>
-        <div style={{fontSize:11,color:TEXT_MUTED,lineHeight:1.6}}>
-          Monte Carlo simulation — plays out every game from the Round of 64 to the National Championship thousands of times. Each run uses randomized team-strength perturbations so no two brackets are the same. Percentages reflect the share of runs where each outcome occurred.
-        </div>
-        <div style={{fontSize:10,color:TEXT_SUBTLE,marginTop:4}}>
-          Model: Logistic Regression + XGBoost + LightGBM ensemble with isotonic calibration, trained on 77 first-round games (2005–2025).
-        </div>
-      </div>
-
-      <div>
-        <div style={{fontSize:10,letterSpacing:"0.1em",color:TEXT_SUBTLE,textTransform:"uppercase",textAlign:"center"}}>Monte Carlo Runs</div>
-        <div style={{fontSize:24,fontWeight:700,color:TEXT,textAlign:"center",margin:"4px 0 8px"}}>{nSims.toLocaleString()}</div>
-        <input
-          type="range"
-          min={0}
-          max={NSIMS_OPTS.length - 1}
-          step={1}
-          value={nSimsIdx}
-          onChange={(e)=>setNSims(NSIMS_OPTS[parseInt(e.target.value, 10)])}
-          style={{width:"100%",accentColor:ACCENT}}
-        />
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:TEXT_SUBTLE,marginTop:4}}>
-          <span>250</span><span>500</span><span>1k</span><span>2.5k</span><span>5k</span><span>10k</span><span>25k</span><span>50k</span>
-        </div>
-        <div style={{fontSize:10,color:TEXT_SUBTLE,marginTop:8,textAlign:"center"}}>
-          Est. runtime ~{Math.round(nSims*0.0082)}s
-        </div>
-      </div>
-
-      <div>
-        <div style={{fontSize:10,letterSpacing:"0.1em",color:TEXT_SUBTLE,textTransform:"uppercase",textAlign:"center"}}>
-          Tournament Variance: <span style={{color:TEXT}}>{SIGMA_LABELS[sigma]||sigma}</span>
-        </div>
-        <div style={{fontSize:9,color:TEXT_SUBTLE,textAlign:"center",marginTop:4,lineHeight:1.5}}>
-          How much random game-day swing each team gets per run. Low = favorites win more (chalky). High = more upsets (chaos).
-        </div>
-        <input type="range" min={0.02} max={0.12} step={0.01} value={sigma}
-          onChange={e=>setSigma(parseFloat(e.target.value))}
-          style={{width:"100%",accentColor:ACCENT,marginTop:8}}
-        />
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:TEXT_SUBTLE,marginTop:4}}>
-          <span>favorites dominate</span><span>upsets galore</span>
-        </div>
-      </div>
-
-      <div style={{display:"flex",justifyContent:"center",gap:12,flexWrap:"wrap",fontSize:10,color:TEXT_SUBTLE}}>
-        <span>Variance: <span style={{color:TEXT_MUTED,fontWeight:500}}>{SIGMA_LABELS[sigma]||sigma}</span></span>
-        <span style={{color:BORDER_SUBTLE}}>·</span>
-        <span title="Elo adjustments applied before simulation — positive boosts a team, negative weakens them">{assumptionCount} assumption{assumptionCount!==1?"s":""} active</span>
-        <span style={{color:BORDER_SUBTLE}}>·</span>
-        <span title="Locked games always use your pick — all other games are simulated normally">{lockedPickCount} pick{lockedPickCount!==1?"s":""} locked</span>
-      </div>
-
-      <div style={{display:"flex",justifyContent:"center",paddingTop:4}}>
+    <div style={{background:SURFACE}}>
+      <div style={{padding:"14px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
         <button
           onClick={()=>onRun({n_sims:nSims,latent_sigma:sigma})}
           disabled={running}
+          className="btn-accent"
           style={{
-            height:36,minWidth:180,padding:"0 20px",background:running?"var(--disabled-btn-bg)":"#111",
-            color:running?TEXT_SUBTLE:"#fff",border:"none",borderRadius:14,
-            fontSize:11,fontWeight:600,cursor:running?"not-allowed":"pointer",
-            letterSpacing:"0.03em",whiteSpace:"nowrap"
+            height:36,minWidth:160,padding:"0 20px",
+            borderRadius:14,
+            fontSize:11,fontWeight:700,cursor:running?"not-allowed":"pointer",
+            letterSpacing:"0.06em",whiteSpace:"nowrap",flexShrink:0
           }}
         >
           {running?"SIMULATING...":"RUN SIMULATION"}
         </button>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:10,color:TEXT_SUBTLE,alignItems:"center",flex:1}}>
+          <span>{nSims.toLocaleString()} runs</span>
+          <span style={{color:BORDER_SUBTLE}}>·</span>
+          <span>{SIGMA_LABELS[sigma]||sigma} variance</span>
+          <span style={{color:BORDER_SUBTLE}}>·</span>
+          <span>{lockedPickCount} pick{lockedPickCount!==1?"s":""} locked</span>
+          {assumptionCount>0&&<><span style={{color:BORDER_SUBTLE}}>·</span><span>{assumptionCount} adjustment{assumptionCount!==1?"s":""}</span></>}
+        </div>
       </div>
+
+      {hasRun && (
+        <div style={{borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
+          <div style={{padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              {!sim.complete&&sim.done>0&&<span style={{width:6,height:6,borderRadius:14,background:GREEN,display:"inline-block",animation:"blink 1s step-end infinite"}}/>}
+              {sim.complete&&<span style={{fontSize:9,color:GREEN,fontWeight:600,letterSpacing:"0.06em"}}>COMPLETE</span>}
+              <span style={{fontSize:10,color:TEXT_MUTED}}>
+                {sim.done.toLocaleString()} / {sim.total.toLocaleString()}
+              </span>
+              <span style={{fontSize:10,fontWeight:600,color:sim.complete?GREEN:TEXT}}>{(progress*100).toFixed(0)}%</span>
+            </div>
+            <div style={{fontSize:9,color:TEXT_MUTED,display:"flex",gap:12}}>
+              {sim.sims_per_sec&&!sim.complete&&<span>{sim.sims_per_sec.toFixed(0)} sims/sec</span>}
+              {sim.elapsed_sec&&<span>{sim.elapsed_sec}s</span>}
+            </div>
+          </div>
+          <div style={{height:4,background:PROGRESS_TRACK}}>
+            <div className={!sim.complete && sim.done > 0 ? "progress-bar-running" : ""} style={{height:"100%",width:`${progress*100}%`,background:sim.complete?GREEN:ACCENT,transition:"width 0.4s ease"}}/>
+          </div>
+        </div>
+      )}
+
+      <div className="sim-config-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
+        <div style={{padding:"12px 16px",borderRight:`1px solid ${BORDER_SUBTLE}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+            <span style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,textTransform:"uppercase"}}>Runs</span>
+            <span style={{fontSize:14,fontWeight:700,color:TEXT}}>{nSims.toLocaleString()}</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={NSIMS_OPTS.length - 1}
+            step={1}
+            value={nSimsIdx}
+            onChange={(e)=>setNSims(NSIMS_OPTS[parseInt(e.target.value, 10)])}
+            style={{width:"100%",accentColor:ACCENT}}
+          />
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:TEXT_SUBTLE,marginTop:4}}>
+            <span>250</span><span>50k</span>
+          </div>
+          <div style={{fontSize:9,color:TEXT_SUBTLE,marginTop:4}}>~{Math.round(nSims*0.0082)}s est.</div>
+        </div>
+        <div style={{padding:"12px 16px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+            <span style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,textTransform:"uppercase"}}>Variance</span>
+            <span style={{fontSize:11,fontWeight:600,color:TEXT}}>{SIGMA_LABELS[sigma]||sigma}</span>
+          </div>
+          <input type="range" min={0.02} max={0.12} step={0.01} value={sigma}
+            onChange={e=>setSigma(parseFloat(e.target.value))}
+            style={{width:"100%",accentColor:ACCENT}}
+          />
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:8,color:TEXT_SUBTLE,marginTop:4}}>
+            <span>chalky</span><span>chaos</span>
+          </div>
+          <div style={{fontSize:9,color:TEXT_SUBTLE,marginTop:4}}>Game-day randomness per run</div>
+        </div>
+      </div>
+
+      {hasRun && (
+        <div className="sim-split">
+          <div style={{borderRight:`1px solid ${BORDER_SUBTLE}`,padding:"12px 16px"}}>
+            <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,marginBottom:8,textTransform:"uppercase"}}>
+              {sim.complete?"Championship Odds":"Live Odds"}
+            </div>
+            {champ.length===0 ? (
+              <div style={{fontSize:11,color:TEXT_SUBTLE}}>Waiting for simulations...</div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {champ.map(([team,p],i)=>(
+                  <div key={team}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
+                      <span style={{fontWeight:i===0?700:400}}>{team}</span>
+                      <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                        <span style={{fontSize:10,color:TEXT_SUBTLE}}>{toML(p/100)}</span>
+                        <span style={{fontWeight:i===0?700:400}}>{pct(p)}</span>
+                      </div>
+                    </div>
+                    <div style={{height:3,background:PROGRESS_TRACK,borderRadius:14,overflow:"hidden"}}>
+                      <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/maxPct)*100}%`,height:"100%",background:i===0?ACCENT_PRIMARY:"var(--muted-bar)",transition:"width 0.5s ease",borderRadius:14}}/>
+                    </div>
+                  </div>
+                ))}
+                {sim.complete&&top(sim.champion_pct,1)[0]&&(
+                  <div style={{marginTop:6,fontSize:10,color:TEXT_MUTED,borderTop:`1px solid ${BORDER_SUBTLE}`,paddingTop:8}}>
+                    Implied odds: {top(sim.champion_pct,1)[0][0]} at {toML(top(sim.champion_pct,1)[0][1]/100)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div ref={logRef} className="terminal-log" style={{height:200,overflowY:"auto",background:"#0d0d0d",padding:"10px 14px",fontSize:10,lineHeight:1.9,color:TEXT_MUTED,scrollbarWidth:"none"} as React.CSSProperties}>
+            {logLines.map((line,i)=>{
+              const isRecent = i>=logLines.length-3;
+              const isChamp = line.includes("champion")||line.includes("CHAMPION")||line.includes("complete");
+              const isCheck = line.includes("✓")||line.includes("passed");
+              return (
+                <div key={i} style={{color:isChamp?"#fff":isCheck?"#86efac":isRecent?TEXT_SUBTLE:TEXT_MUTED,animation:i===logLines.length-1?"fadeIn 0.2s ease":"none"}}>
+                  {line}
+                </div>
+              );
+            })}
+            {logLines.length===0&&<div style={{color:TEXT_MUTED}}>ready...</div>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -173,7 +241,7 @@ function AssumptionsPanel({
   return (
     <div style={{border:`1px solid ${BORDER_OUTER}`,background:SURFACE}}>
       <div style={{padding:PAD_HEADER,borderBottom:`1px solid ${BORDER_SUBTLE}`,background:BG_HEADER}}>
-        <div style={{fontSize:10,color:TEXT_MUTED}}>Adjust a team&apos;s strength before simulating. Values are Elo points — roughly +50 Elo ≈ +2% win probability in a typical matchup. Positive boosts the team, negative weakens them.</div>
+        <div style={{fontSize:10,color:TEXT_MUTED}}>Values are Elo points. +50 Elo ≈ +2% win probability per matchup.</div>
       </div>
       <div style={{padding:"10px 14px",display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:10,alignItems:"end",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
         <div>
@@ -366,7 +434,7 @@ function InitialPickTree({
         <div style={{padding:"6px 10px",fontSize:10,fontWeight:600,letterSpacing:"0.08em",color:TEXT,border:`1px solid ${BORDER_OUTER}`,background:BG_HEADER}}>
           {region.toUpperCase()} REGION
         </div>
-        <RoundMatchups round={0} label="Round of 64 — Pick Winners" pickable={true}/>
+        <RoundMatchups round={0} label="Round of 64" pickable={true}/>
         <RoundMatchups round={1} label="Round of 32"/>
         <RoundMatchups round={2} label="Sweet 16"/>
         <RoundMatchups round={3} label="Elite Eight"/>
@@ -437,7 +505,7 @@ function InitialPickTree({
   return (
     <div style={{border:`1px solid ${BORDER_OUTER}`,background:SURFACE}}>
       <div style={{padding:PAD_HEADER,borderBottom:`1px solid ${BORDER_SUBTLE}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:BG_HEADER}}>
-        <span style={{fontSize:10,color:TEXT_MUTED,letterSpacing:"0.06em"}}>Click to lock a pick. <span style={{color:TEXT_SUBTLE}}>SIM = model&apos;s predicted winner · LOCK = your pick · Re-run to apply changes</span></span>
+        <span style={{fontSize:10,color:TEXT_MUTED,letterSpacing:"0.06em"}}>Click a team to lock your pick. <span style={{color:TEXT_SUBTLE}}>SIM = model pick · LOCK = your pick</span></span>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:10,color:TEXT_MUTED}}>{count} locked</span>
           {count > 0 && (
@@ -454,11 +522,11 @@ function InitialPickTree({
             onClick={() => setActiveRegion(r)}
             style={{
               padding:"4px 10px",
-              border:`1px solid ${BORDER_OUTER}`,
-              background:activeRegion===r?"#000":SURFACE,
-              color:activeRegion===r?"#fff":TEXT,
+              border:activeRegion===r?`1px solid var(--accent-primary)`:`1px solid ${BORDER_OUTER}`,
+              background:activeRegion===r?"var(--accent-primary-soft)":SURFACE,
+              color:activeRegion===r?"var(--accent-primary)":TEXT,
               fontSize:10,
-              fontWeight:600,
+              fontWeight:activeRegion===r?700:600,
               cursor:"pointer",
               letterSpacing:"0.04em",
             }}
@@ -477,10 +545,10 @@ function InitialPickTree({
           const pathDiffers = titleWinner && mcName && titleWinner !== mcName;
           return (
             <div style={{fontSize:9,color:TEXT_SUBTLE,marginBottom:8,textAlign:"center",letterSpacing:"0.06em",lineHeight:1.6}}>
-              Most likely game-by-game bracket path (each game&apos;s individual favorite)
+              Most likely path based on each game&apos;s individual favorite
               {pathDiffers && sim.complete && (
                 <div style={{color:"#d97706",fontWeight:600,marginTop:2,letterSpacing:"0.04em"}}>
-                  Note: {mcName} is the Monte Carlo champion ({pct(mcChamp[1])}) despite {titleWinner} winning this specific path — {mcName} wins more often across all {sim.total.toLocaleString()} simulated paths
+                  Note: {mcName} is the Monte Carlo champion ({pct(mcChamp[1])}) despite {titleWinner} winning this path. {mcName} wins more often across all {sim.total.toLocaleString()} simulated paths.
                 </div>
               )}
             </div>
@@ -489,7 +557,7 @@ function InitialPickTree({
         <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:8,alignItems:"center"}}>
           <div style={{border:`1px solid ${BORDER_OUTER}`,background:SURFACE,borderRadius:14,overflow:"hidden"}}>
             <div style={{padding:"6px 10px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER,fontSize:9,color:TEXT_MUTED,letterSpacing:"0.08em",textTransform:"uppercase",textAlign:"center"}}>
-              Semifinal 1 — <span style={{color:TEXT_MUTED,fontWeight:600}}>East</span> vs <span style={{color:TEXT_MUTED,fontWeight:600}}>Midwest</span>
+              Semifinal 1: <span style={{color:TEXT_MUTED,fontWeight:600}}>East</span> vs <span style={{color:TEXT_MUTED,fontWeight:600}}>Midwest</span>
             </div>
             <div style={{padding:8}}>{renderGameCard(sf1, sf1Prob, sf1Winner)}</div>
           </div>
@@ -505,7 +573,7 @@ function InitialPickTree({
           </div>
           <div style={{border:`1px solid ${BORDER_OUTER}`,background:SURFACE,borderRadius:14,overflow:"hidden"}}>
             <div style={{padding:"6px 10px",borderBottom:`1px solid ${BORDER_INNER}`,background:BG_HEADER,fontSize:9,color:TEXT_MUTED,letterSpacing:"0.08em",textTransform:"uppercase",textAlign:"center"}}>
-              Semifinal 2 — <span style={{color:TEXT_MUTED,fontWeight:600}}>West</span> vs <span style={{color:TEXT_MUTED,fontWeight:600}}>South</span>
+              Semifinal 2: <span style={{color:TEXT_MUTED,fontWeight:600}}>West</span> vs <span style={{color:TEXT_MUTED,fontWeight:600}}>South</span>
             </div>
             <div style={{padding:8}}>{renderGameCard(sf2, sf2Prob, sf2Winner)}</div>
           </div>
@@ -515,93 +583,6 @@ function InitialPickTree({
   );
 }
 
-// ── Live sim panel (progress + leaderboard + log) ─────────────────────────────
-function LiveSimPanel({ sim, logLines }: { sim: SimState; logLines: string[] }) {
-  const logRef = useRef<HTMLDivElement>(null);
-  useEffect(()=>{ if(logRef.current) logRef.current.scrollTop=logRef.current.scrollHeight; },[logLines]);
-
-  const progress = sim.total>0 ? sim.done/sim.total : 0;
-  const champ = top(sim.champion_pct,4);
-  const maxPct = champ[0]?.[1] || 1;
-
-  return (
-    <div style={{background:SURFACE}}>
-      <div style={{background:BG_HEADER,padding:PAD_HEADER,display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${BORDER_SUBTLE}`}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:10,fontWeight:600,letterSpacing:"0.1em",color:TEXT_MUTED}}>RUN STATUS</span>
-          {sim.done>0&&!sim.complete&&<span style={{width:6,height:6,borderRadius:14,background:GREEN,display:"inline-block",animation:"blink 1s step-end infinite"}}/>}
-          {sim.complete&&<span style={{fontSize:9,color:GREEN,letterSpacing:"0.06em"}}>COMPLETE</span>}
-        </div>
-        <div style={{fontSize:9,color:TEXT_MUTED,display:"flex",gap:12}}>
-          {sim.sims_per_sec&&!sim.complete&&<span>{sim.sims_per_sec.toFixed(0)} sims/sec</span>}
-          {sim.elapsed_sec&&<span>{sim.elapsed_sec}s</span>}
-          {sim.model_used&&<span style={{color:TEXT_MUTED}}>{sim.model_used.replace(/_/g," ")}</span>}
-        </div>
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
-        {/* Left: progress + live leaderboard */}
-        <div style={{borderRight:`1px solid ${BORDER_SUBTLE}`,padding:PAD_BODY}}>
-          {/* Progress bar */}
-          <div style={{marginBottom:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:TEXT_SUBTLE,marginBottom:5}}>
-              <span>{sim.done.toLocaleString()} / {sim.total.toLocaleString()} simulations</span>
-              <span style={{fontWeight:600,color:sim.complete?GREEN:TEXT}}>{(progress*100).toFixed(0)}%</span>
-            </div>
-            <div style={{height:4,background:PROGRESS_TRACK,borderRadius:14,overflow:"hidden"}}>
-              <div className={!sim.complete && sim.done > 0 ? "progress-bar-running" : ""} style={{height:"100%",width:`${progress*100}%`,background:sim.complete?GREEN:ACCENT,transition:"width 0.4s ease",borderRadius:14}}/>
-            </div>
-          </div>
-
-          {/* Live champion leaderboard */}
-          <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,marginBottom:8,textTransform:"uppercase"}}>
-            {sim.complete?"Final Championship Odds":"Live Championship Odds"}
-          </div>
-          {champ.length===0 ? (
-            <div style={{fontSize:11,color:TEXT_SUBTLE}}>Waiting for simulations...</div>
-          ) : (
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {champ.map(([team,p],i)=>(
-                <div key={team}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
-                    <span style={{fontWeight:i===0?700:400}}>{team}</span>
-                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                      <span style={{fontSize:10,color:TEXT_SUBTLE}}>{toML(p/100)}</span>
-                      <span style={{fontWeight:i===0?700:400}}>{pct(p)}</span>
-                    </div>
-                  </div>
-                  <div style={{height:3,background:PROGRESS_TRACK,borderRadius:14,overflow:"hidden"}}>
-                    <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/maxPct)*100}%`,height:"100%",background:i===0?ACCENT:"var(--muted-bar)",transition:"width 0.5s ease",borderRadius:14}}/>
-                  </div>
-                </div>
-              ))}
-              {sim.complete&&top(sim.champion_pct,1)[0]&&(
-                <div style={{marginTop:6,fontSize:10,color:TEXT_MUTED,borderTop:`1px solid ${BORDER_SUBTLE}`,paddingTop:8}}>
-                  Implied odds: {top(sim.champion_pct,1)[0][0]} at {toML(top(sim.champion_pct,1)[0][1]/100)}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Right: console log */}
-        <div ref={logRef} className="terminal-log" style={{height:220,overflowY:"auto",background:"#0d0d0d",padding:"10px 14px",fontSize:10,lineHeight:1.9,color:TEXT_MUTED,borderLeft:`1px solid ${BORDER_SUBTLE}`,scrollbarWidth:"none"} as React.CSSProperties}>
-          {logLines.map((line,i)=>{
-            const isRecent = i>=logLines.length-3;
-            const isChamp = line.includes("champion")||line.includes("CHAMPION")||line.includes("complete");
-            const isCheck = line.includes("✓")||line.includes("passed");
-            return (
-              <div key={i} style={{color:isChamp?"#fff":isCheck?"#86efac":isRecent?TEXT_SUBTLE:TEXT_MUTED,animation:i===logLines.length-1?"fadeIn 0.2s ease":"none"}}>
-                {line}
-              </div>
-            );
-          })}
-          {logLines.length===0&&<div style={{color:TEXT_MUTED}}>ready to simulate...</div>}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Advancement Table ─────────────────────────────────────────────────────────
 function AdvancementTable({ sim }: { sim: SimState }) {
@@ -638,18 +619,17 @@ function AdvancementTable({ sim }: { sim: SimState }) {
       a.name.localeCompare(b.name)
     ));
 
-  // Color scale: 0=white, 100=black
   const cell = (v:number, isChamp=false) => {
     const intensity = Math.min(v/85, 1);
-    const bg = isChamp ? `rgba(34,197,94,${intensity*0.8})` : `rgba(0,0,0,${intensity*0.15})`;
-    const color = isChamp&&v>30 ? "#065f46" : intensity>0.6 ? TEXT : TEXT_MUTED;
+    const bg = isChamp ? `rgba(34,197,94,${intensity*0.7})` : `rgba(0,0,0,${intensity*0.15})`;
+    const color = isChamp&&v>30 ? "#fff" : intensity>0.6 ? TEXT : TEXT_MUTED;
     return {background:bg, color, fontWeight:v>40?700:v>10?500:400};
   };
 
   return (
     <div style={{overflowX:"auto",border:`1px solid ${BORDER_OUTER}`,background:SURFACE}}>
       <div style={{padding:"8px 12px",borderBottom:`1px solid ${BORDER_SUBTLE}`,background:BG_HEADER,fontSize:10,color:TEXT_MUTED}}>
-        % of Monte Carlo runs where each team reached each round. Hover column headers for details.
+        How often each team reached each round across all simulations. Hover columns for details.
       </div>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
         <thead>
@@ -662,7 +642,7 @@ function AdvancementTable({ sim }: { sim: SimState }) {
             <th title="% chance to reach Elite Eight" style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>E8</th>
             <th title="% chance to reach Final Four" style={{padding:"8px 8px",textAlign:"center",color:"#fff",fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>F4</th>
             <th title="% chance to reach Championship Game" style={{padding:"8px 8px",textAlign:"center",color:"#aaa",fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>FINAL</th>
-            <th title="% chance to win the National Championship" style={{padding:"8px 10px",textAlign:"center",color:GREEN,fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>CHAMP</th>
+            <th title="% chance to win the National Championship" style={{padding:"8px 10px",textAlign:"center",color:"var(--accent-primary)",fontSize:9,letterSpacing:"0.08em",fontWeight:600,cursor:"help"}}>CHAMP</th>
           </tr>
         </thead>
         <tbody>
@@ -679,11 +659,11 @@ function AdvancementTable({ sim }: { sim: SimState }) {
                 </td>
                 {([t.r32,t.s16,t.e8,t.f4,t.fin] as number[]).map((v,j)=>(
                   <td key={j} style={{padding:"6px 8px",textAlign:"center",...cell(v)}}>
-                    {v>0.5?pct(v,v<10?1:0):"—"}
+                    {v>0.5?pct(v,v<10?1:0):"-"}
                   </td>
                 ))}
                 <td style={{padding:"6px 10px",textAlign:"center",...cell(t.champ,true)}}>
-                  {t.champ>0.5?<strong>{pct(t.champ,t.champ<5?1:0)}</strong>:"—"}
+                  {t.champ>0.5?<strong>{pct(t.champ,t.champ<5?1:0)}</strong>:"-"}
                 </td>
               </tr>
             );
@@ -694,7 +674,7 @@ function AdvancementTable({ sim }: { sim: SimState }) {
   );
 }
 
-// ── Bracket grid (replaces tree — much less re-render churn) ──────────────────
+// ── Bracket grid ──────────────────────────────────────────────────────────────
 // Each region is an independent memoized column. Resolved state passed per-game.
 const GameCard = memo(function GameCard({
   g,
@@ -854,7 +834,7 @@ function BracketGrid({
   return (
     <div style={{border:`1px solid ${BORDER_OUTER}`,overflowX:"auto",background:SURFACE}}>
       <div style={{padding:"6px 10px",background:BG_ALT,borderBottom:`1px solid ${BORDER_SUBTLE}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-        <span style={{fontSize:9,color:TEXT_MUTED,letterSpacing:"0.06em"}}>Click any team to lock a winner. Locked picks override the simulation for that game — re-run to apply changes.</span>
+        <span style={{fontSize:9,color:TEXT_MUTED,letterSpacing:"0.06em"}}>Click any team to lock a winner. Locked picks override the simulation. Re-run to apply.</span>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:9,color:TEXT_MUTED}}>{pickCount} picks locked</span>
           {pickCount > 0 && (
@@ -912,15 +892,15 @@ function ChampionshipChart({ sim }: { sim: SimState }) {
   const max = data[0]?.[1] || 1;
   return (
     <div style={{padding:"16px 20px"}}>
-      <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,marginBottom:12,textTransform:"uppercase"}}>Championship probability — all {data.length} teams above 0%</div>
+      <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,marginBottom:12,textTransform:"uppercase"}}>All {data.length} teams with championship probability above 0%</div>
       <div style={{display:"flex",flexDirection:"column",gap:5}}>
         {data.map(([team,p],i)=>(
           <div key={team} style={{display:"grid",gridTemplateColumns:"140px 1fr 54px",alignItems:"center",gap:10}}>
             <div style={{fontSize:11,fontWeight:i<4?600:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{team}</div>
             <div style={{height:6,background:PROGRESS_TRACK,borderRadius:14,overflow:"hidden"}}>
-              <div style={{width:`${(p/max)*100}%`,height:"100%",background:i===0?"#000":i<4?"#333":"#bbb",borderRadius:14,transition:"width 0.5s"}}/>
+              <div style={{width:`${(p/max)*100}%`,height:"100%",background:i===0?"var(--accent-primary)":i<4?"var(--accent-primary-muted)":"var(--muted-bar)",borderRadius:14,transition:"width 0.5s"}}/>
             </div>
-            <div style={{fontSize:11,fontWeight:i===0?700:400,textAlign:"right"}}>{pct(p)}</div>
+            <div style={{fontSize:11,fontWeight:i===0?700:400,textAlign:"right",color:i===0?ACCENT_PRIMARY:undefined}}>{pct(p)}</div>
           </div>
         ))}
       </div>
@@ -934,12 +914,12 @@ function OddsComparisonChart({ sim }: { sim: SimState }) {
     {label:"Sweet 16", data:sim.sweet_sixteen_pct, color:"#d4d4d4"},
     {label:"Elite 8",  data:sim.elite_eight_pct, color:"#a3a3a3"},
     {label:"Final Four",data:sim.final_four_pct, color:"#525252"},
-    {label:"Champion", data:sim.champion_pct,  color:"#000"},
+    {label:"Champion", data:sim.champion_pct,  color:"var(--accent-primary)"},
   ];
   const maxVal = Math.max(...teams.map(t=>sim.sweet_sixteen_pct[t]||0));
   return (
     <div style={{padding:"16px 20px"}}>
-      <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,marginBottom:16,textTransform:"uppercase"}}>Advancement probability — top 8 title contenders</div>
+      <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,marginBottom:16,textTransform:"uppercase"}}>Top 8 title contenders by round</div>
       <div style={{display:"grid",gridTemplateColumns:`140px repeat(${teams.length},1fr)`,gap:0}}>
         {/* Round labels */}
         <div/>
@@ -954,12 +934,13 @@ function OddsComparisonChart({ sim }: { sim: SimState }) {
               const intensity = v/maxVal;
               return (
                 <div key={t} title={`${t}: ${pct(v)}`} style={{
-                  background:`rgba(0,0,0,${intensity*0.85})`,
+                  background:`rgba(34,197,94,${intensity*0.65})`,
                   margin:"0 1px 1px",
                   height:28,
                   display:"flex",alignItems:"center",justifyContent:"center",
+                  borderRadius:2,
                 }}>
-                  <span style={{fontSize:9,color:intensity>0.5?"#fff":"#333",fontWeight:v>50?700:400}}>
+                  <span style={{fontSize:9,color:intensity>0.4?"#fff":"var(--text-muted)",fontWeight:v>50?700:400}}>
                     {v>1?pct(v,0):""}
                   </span>
                 </div>
@@ -977,7 +958,7 @@ function UpsetChart({ sim }: { sim: SimState }) {
   const max = upsets[0]?.upset_prob||1;
   return (
     <div style={{padding:"16px 20px"}}>
-      <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,marginBottom:12,textTransform:"uppercase"}}>Top upset candidates — R64</div>
+      <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,marginBottom:12,textTransform:"uppercase"}}>Top first-round upset candidates</div>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         {upsets.map((u:any,i:number)=>(
           <div key={i} style={{display:"grid",gridTemplateColumns:"180px 1fr 48px",alignItems:"center",gap:10}}>
@@ -986,7 +967,7 @@ function UpsetChart({ sim }: { sim: SimState }) {
               <span style={{color:"#aaa",fontSize:9}}> over ({u.fav_seed}) {u.favorite}</span>
             </div>
             <div style={{height:6,background:PROGRESS_TRACK,borderRadius:14,overflow:"hidden"}}>
-              <div style={{width:`${(u.upset_prob/max)*100}%`,height:"100%",background:u.upset_prob>40?"#000":u.upset_prob>32?"#555":"#999",borderRadius:14}}/>
+              <div style={{width:`${(u.upset_prob/max)*100}%`,height:"100%",background:u.upset_prob>40?"var(--accent-primary)":u.upset_prob>32?"var(--accent-primary-muted)":"var(--muted-bar)",borderRadius:14}}/>
             </div>
             <div style={{fontSize:11,fontWeight:600,textAlign:"right"}}>{pct(u.upset_prob,0)}</div>
           </div>
@@ -1017,6 +998,7 @@ export default function App() {
   } = useSimulation();
 
   const [resultsPayload, setResultsPayload] = useState<RealResults | null>(null);
+  const [perfectBracket, setPerfectBracket] = useState<PerfectBracket | null>(null);
   useEffect(() => {
     const load = () =>
       getResults()
@@ -1025,6 +1007,9 @@ export default function App() {
     load();
     const id = setInterval(load, RESULTS_POLL_MS);
     return () => clearInterval(id);
+  }, []);
+  useEffect(() => {
+    getPerfectBracket().then(setPerfectBracket).catch(() => {});
   }, []);
 
   const realResults = resultsPayload?.games ?? [];
@@ -1038,13 +1023,15 @@ export default function App() {
   const champ = top(sim.champion_pct,1)[0];
   const leaderName = champ?.[0] || "Waiting for simulation";
   const leaderPctNum = champ?.[1] ?? 0;
-  const leaderPct = leaderPctNum > 0 ? pct(leaderPctNum) : "—";
+  const leaderPct = leaderPctNum > 0 ? pct(leaderPctNum) : "-";
   const finalFourTop = top(sim.final_four_pct || {}, 4);
   const ffMax = finalFourTop[0]?.[1] || 1;
   const lockedCount = Object.keys(forcedPicks).length;
 
+  const [resultsImported, setResultsImported] = useState(false);
   const handleImportResults = useCallback((picks: Record<string, string>, count: number) => {
     setForcedPicks((prev: Record<string, string>) => ({ ...prev, ...picks }));
+    setResultsImported(true);
   }, [setForcedPicks]);
 
   return (
@@ -1068,74 +1055,144 @@ export default function App() {
         </div>
       </div>
 
-      <Ticker results={resultsPayload} onImportResults={handleImportResults} />
+      <Ticker results={resultsPayload} />
 
-      <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,padding:12,marginBottom:14,background:SURFACE}}>
-        <div className="hero-grid">
-          <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14}}>
-            <div style={{fontSize:9,letterSpacing:"0.12em",color:TEXT_SUBTLE,marginBottom:4,textTransform:"uppercase"}}>{sim.complete?"Projected Champion":"Current Leader"}</div>
-            <div style={{fontSize:26,fontWeight:700,lineHeight:1.05}}>{leaderName}</div>
-            <div style={{fontSize:12,color:TEXT_MUTED,marginTop:5}}>{leaderPct}</div>
-            {leaderPctNum > 0 && <div style={{fontSize:9,color:TEXT_SUBTLE,marginTop:2}}>wins the tournament most often across all simulated paths</div>}
-            {leaderPctNum > 0 && (
-              <div style={{height:3,background:PROGRESS_TRACK,borderRadius:14,overflow:"hidden",marginTop:8}}>
-                <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${Math.min(100, leaderPctNum)}%`,height:"100%",background:sim.complete?GREEN:ACCENT,transition:"width 0.5s ease",borderRadius:14}}/>
+      {/* Import results banner + ESPN perfect bracket stats */}
+      {(() => {
+        const finalCount = realResults.filter(g => g.status === "final" && g.winner).length;
+        const showImport = finalCount > 0 && !resultsImported;
+        const hasPB = perfectBracket && (perfectBracket.perfect_remaining != null || perfectBracket.brackets_fallen != null);
+        if (!showImport && !resultsImported && !hasPB) return null;
+        return (
+          <div className="banner-row">
+            {showImport && (
+              <button
+                onClick={() => {
+                  const picks: Record<string, string> = {};
+                  for (const g of realResults) {
+                    if (g.status === "final" && g.winner) {
+                      picks[`${g.region}:${g.round}:${g.game_index}`] = g.winner;
+                    }
+                  }
+                  handleImportResults(picks, Object.keys(picks).length);
+                }}
+                style={{
+                  padding:"12px 16px",borderRadius:14,cursor:"pointer",
+                  border:`1px solid var(--accent-primary)`,background:"var(--accent-primary-soft)",
+                  display:"flex",alignItems:"center",gap:12,textAlign:"left",
+                  transition:"background 0.15s ease",
+                }}
+              >
+                <span style={{fontSize:16,lineHeight:1,flexShrink:0}}>⬇</span>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:TEXT}}>Lock {finalCount} completed game{finalCount !== 1 ? "s" : ""}</div>
+                  <div style={{fontSize:10,color:TEXT_MUTED,marginTop:2}}>Import real results, simulate only remaining games</div>
+                </div>
+              </button>
+            )}
+            {resultsImported && (
+              <div style={{
+                padding:"12px 16px",borderRadius:14,
+                border:`1px solid var(--accent-primary)`,background:"var(--accent-primary-soft)",
+                display:"flex",alignItems:"center",gap:12,
+              }}>
+                <span style={{fontSize:14,color:"var(--accent-primary)",lineHeight:1,flexShrink:0}}>✓</span>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:TEXT}}>{realResults.filter(g => g.status === "final" && g.winner).length} results locked</div>
+                  <div style={{fontSize:10,color:TEXT_MUTED,marginTop:2}}>Re-run to simulate only remaining games</div>
+                </div>
+              </div>
+            )}
+            {hasPB && (
+              <div className="espn-stats">
+                {perfectBracket!.perfect_remaining != null && (
+                  <div style={{padding:"12px 16px"}}>
+                    <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,textTransform:"uppercase",marginBottom:4}}>Perfect Brackets</div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6}}>
+                      <span style={{fontSize:22,fontWeight:700,color:"var(--accent-primary)",lineHeight:1}}>{perfectBracket!.perfect_remaining!.toLocaleString()}</span>
+                      <span style={{fontSize:10,color:TEXT_MUTED}}>remaining</span>
+                    </div>
+                  </div>
+                )}
+                {perfectBracket!.brackets_fallen != null && (
+                  <div style={{padding:"12px 16px"}}>
+                    <div style={{fontSize:9,letterSpacing:"0.1em",color:TEXT_SUBTLE,textTransform:"uppercase",marginBottom:4}}>Brackets Busted</div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:6}}>
+                      <span style={{fontSize:22,fontWeight:700,color:TEXT,lineHeight:1}}>{perfectBracket!.brackets_fallen!.toLocaleString()}</span>
+                      <span style={{fontSize:10,color:TEXT_MUTED}}>eliminated</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
-          <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14}}>
-            <div style={{fontSize:9,letterSpacing:"0.12em",color:TEXT_SUBTLE,marginBottom:1,textTransform:"uppercase"}}>Final Four Leaders</div>
-            <div style={{fontSize:8,color:TEXT_SUBTLE,marginBottom:5}}>chance to reach the Final Four (win their region)</div>
-            <div style={{display:"grid",gap:6}}>
+        );
+      })()}
+
+      <div style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,padding:14,marginBottom:14,background:SURFACE}}>
+        <div className="hero-grid">
+          <div className="hero-champion" style={{padding:"14px 16px",border:`1px solid ${BORDER_INNER}`,borderRadius:14,background:ACCENT_PRIMARY_SOFT}}>
+            <div style={{fontSize:9,letterSpacing:"0.12em",color:TEXT_SUBTLE,marginBottom:6,textTransform:"uppercase"}}>{sim.complete?"Projected Champion":"Current Leader"}</div>
+            <div style={{fontSize:28,fontWeight:700,lineHeight:1.05,letterSpacing:"-0.01em"}}>{leaderName}</div>
+            <div style={{display:"flex",alignItems:"baseline",gap:6,marginTop:8}}>
+              <span style={{fontSize:16,color:ACCENT_PRIMARY,fontWeight:700}}>{leaderPct}</span>
+              {leaderPctNum > 0 && <span style={{fontSize:10,color:TEXT_MUTED}}>championship probability</span>}
+            </div>
+            {leaderPctNum > 0 && (
+              <div style={{height:3,background:PROGRESS_TRACK,borderRadius:14,overflow:"hidden",marginTop:10}}>
+                <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${Math.min(100, leaderPctNum)}%`,height:"100%",background:sim.complete?ACCENT_PRIMARY:ACCENT,transition:"width 0.5s ease",borderRadius:14}}/>
+              </div>
+            )}
+          </div>
+          <div style={{padding:"14px 16px",border:`1px solid ${BORDER_INNER}`,borderRadius:14}}>
+            <div style={{fontSize:9,letterSpacing:"0.12em",color:TEXT_SUBTLE,marginBottom:8,textTransform:"uppercase"}}>Final Four Leaders</div>
+            <div style={{display:"grid",gap:8}}>
               {finalFourTop.map(([t,p],i)=>(
                 <div key={t}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}>
                     <span style={{fontWeight:500}}>{t}</span>
-                    <span style={{color:TEXT_MUTED}}>{pct(p)}</span>
+                    <span style={{color:TEXT_MUTED,fontVariantNumeric:"tabular-nums"}}>{pct(p)}</span>
                   </div>
                   <div style={{height:3,background:PROGRESS_TRACK,borderRadius:14,overflow:"hidden"}}>
-                    <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/ffMax)*100}%`,height:"100%",background:i===0?ACCENT:"var(--muted-bar)",transition:"width 0.5s ease",borderRadius:14}}/>
+                    <div className={!sim.complete ? "progress-bar-running" : ""} style={{width:`${(p/ffMax)*100}%`,height:"100%",background:i===0?ACCENT_PRIMARY:"var(--muted-bar)",transition:"width 0.5s ease",borderRadius:14}}/>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-          <div style={{padding:"8px 10px",border:`1px solid ${BORDER_INNER}`,borderRadius:14,display:"grid",alignContent:"space-between"}}>
-            <div style={{fontSize:10,color:TEXT_MUTED,lineHeight:1.6}}>
-              {sim.done>0?`${sim.done.toLocaleString()} sims run`:"Ready to simulate"}<br/>
-              {phase === "done"
-                ? `${sim.elapsed_sec}s elapsed`
-                : phase === "building_bracket"
-                  ? <><span style={{fontWeight:600,color:TEXT}}>{elapsed.toFixed(1)}s</span>{" · "}<span className="pulse-dot" style={{marginRight:4}}/><span style={{color:"#16a34a",fontWeight:600}}>Presenting results…</span></>
-                  : phase === "simulating"
-                    ? <span style={{color:TEXT,fontWeight:600}}>{elapsed.toFixed(1)}s elapsed</span>
-                    : "Waiting to start"}
+          <div style={{padding:"14px 16px",border:`1px solid ${BORDER_INNER}`,borderRadius:14,display:"grid",alignContent:"space-between",gap:8}}>
+            <div>
+              <div style={{fontSize:9,letterSpacing:"0.12em",color:TEXT_SUBTLE,marginBottom:6,textTransform:"uppercase"}}>Simulation</div>
+              <div style={{fontSize:13,fontWeight:600,color:TEXT,lineHeight:1.4}}>
+                {sim.done>0?`${sim.done.toLocaleString()} runs`:"No runs yet"}
+              </div>
+              <div style={{fontSize:11,color:TEXT_MUTED,marginTop:2}}>
+                {phase === "done"
+                  ? `Completed in ${sim.elapsed_sec}s`
+                  : phase === "building_bracket"
+                    ? <><span style={{fontWeight:600,color:TEXT}}>{elapsed.toFixed(1)}s</span>{" · "}<span className="pulse-dot" style={{marginRight:4}}/><span style={{color:"#16a34a",fontWeight:600}}>Presenting results…</span></>
+                    : phase === "simulating"
+                      ? <span style={{color:TEXT,fontWeight:600}}>{elapsed.toFixed(1)}s elapsed</span>
+                      : "Ready"}
+              </div>
             </div>
-            <div style={{fontSize:10,color:TEXT_SUBTLE}}>{lockedCount} picks locked</div>
+            <div style={{fontSize:10,color:TEXT_SUBTLE,borderTop:`1px solid ${BORDER_INNER}`,paddingTop:8}}>{lockedCount} pick{lockedCount!==1?"s":""} locked</div>
           </div>
         </div>
       </div>
 
       <div className="dashboard-grid">
         <div className="stack">
-          <Collapse label="Team Deep Dive" defaultOpen={true}>
-            <TeamProbabilityMath sim={sim} teams={catalogTeams}/>
-          </Collapse>
-
-          <GroupTitle label="Run & Track" hint="configure and run the Monte Carlo simulation" />
-          <Collapse label="Simulation Setup" defaultOpen={true}>
+          <Collapse label="Simulation" defaultOpen={true}>
             <SimControls
               running={running}
               onRun={(cfg)=>startSim({...cfg, team_overrides: overrides, forced_picks: forcedPicks})}
               assumptionCount={Object.keys(overrides).length}
               lockedPickCount={Object.keys(forcedPicks).length}
+              sim={sim}
+              logLines={logLines}
             />
           </Collapse>
-          <Collapse label="Live Simulation" defaultOpen={true}>
-            <LiveSimPanel sim={sim} logLines={logLines}/>
-          </Collapse>
-
-          <GroupTitle label="Pick & Scenario" hint="lock game winners and adjust team strengths before simulating" />
           <Collapse label="Bracket Picks & Path" defaultOpen={true}>
             <InitialPickTree
               teamsCatalog={teamsCatalog}
@@ -1157,19 +1214,21 @@ export default function App() {
         </div>
 
         <div className="stack insights-rail" style={{position:"sticky",top:12}}>
-          <GroupTitle label="Insights" hint="statistical analysis, diagnostics, and model comparisons" />
+          <Collapse label="Team Deep Dive" defaultOpen={true}>
+            <TeamProbabilityMath sim={sim} teams={catalogTeams}/>
+          </Collapse>
           {sim.complete ? (
             <>
               <Collapse label="Championship Probability" defaultOpen={true}>
                 <ChampionshipChart sim={sim}/>
               </Collapse>
-              <Collapse label="Round-by-Round Advancement — Top 8" defaultOpen={true}>
+              <Collapse label="Round-by-Round Advancement" defaultOpen={true}>
                 <OddsComparisonChart sim={sim}/>
               </Collapse>
               <Collapse label="Upset Watch" defaultOpen={true}>
                 <UpsetChart sim={sim}/>
               </Collapse>
-              <Collapse label="Bracket Value Picks" defaultOpen={true}>
+              <Collapse label="Value Picks" defaultOpen={true}>
                 <BracketValuePicks sim={sim} teamsCatalog={teamsCatalog}/>
               </Collapse>
               <Collapse label="Model vs Vegas" defaultOpen={true}>
@@ -1181,7 +1240,17 @@ export default function App() {
               <Collapse label="Historical Seed Win Rates" defaultOpen={true}>
                 <SeedHistory sim={sim}/>
               </Collapse>
-              <Collapse label="Simulation Quality Checks" defaultOpen={true}>
+              <Collapse label="Advancement Table" defaultOpen={true}>
+                <div style={{maxHeight:520,overflowY:"auto"}}>
+                  <AdvancementTable sim={sim}/>
+                </div>
+              </Collapse>
+              {allTeams.length>0 && (
+                <Collapse label="Head-to-Head Analysis" defaultOpen={true}>
+                  <AnalysisSection allTeams={allTeams}/>
+                </Collapse>
+              )}
+              <Collapse label="Simulation Quality" defaultOpen={false}>
                 <DiagnosticsSection sim={sim} overrides={overrides}/>
               </Collapse>
               {hasFF && (
@@ -1189,25 +1258,13 @@ export default function App() {
                   <FirstFourSection sim={sim}/>
                 </Collapse>
               )}
-              {allTeams.length>0 && (
-                <Collapse label="Head-to-Head Analysis" defaultOpen={true}>
-                  <AnalysisSection allTeams={allTeams}/>
-                </Collapse>
-              )}
-              <Collapse label="Full Advancement Table" defaultOpen={true}>
-                <div style={{maxHeight:520,overflowY:"auto"}}>
-                  <AdvancementTable sim={sim}/>
-                </div>
-              </Collapse>
             </>
           ) : (
             <div style={{border:`1px dashed ${BORDER_OUTER}`,borderRadius:14,padding:"12px 14px",fontSize:11,color:TEXT_MUTED,background:SURFACE,lineHeight:1.6}}>
-              Run a simulation to unlock advanced insights — championship probabilities, upset watch, model vs Vegas comparisons, region difficulty, seed history, and head-to-head analysis.
+              Run a simulation to see championship probabilities, upset watch, model vs Vegas, region difficulty, and more.
             </div>
           )}
-
-          <GroupTitle label="Model details" hint="training data, model stack, and calibration info" />
-          <Collapse label="Data & model" defaultOpen={false}>
+          <Collapse label="Data & Model" defaultOpen={false}>
             <DataProvenance info={modelInfo}/>
             <ModelTrainingOutput/>
           </Collapse>
@@ -1216,7 +1273,7 @@ export default function App() {
 
       <div style={{borderTop:`1px solid ${BORDER_SUBTLE}`,marginTop:48,paddingTop:14,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
         <a href="https://github.com/alexh212" target="_blank" rel="noopener noreferrer" style={{fontSize:9,color:TEXT_SUBTLE,textDecoration:"none"}}>github.com/alexh212</a>
-        <span style={{fontSize:9,color:TEXT_SUBTLE}}>3-model ensemble (LR + XGBoost + LightGBM) · isotonic calibration · latent strength draws per run · rolling-origin cross-validation · trained on 77 R64 games 2005–2025</span>
+        <span style={{fontSize:9,color:TEXT_SUBTLE}}>3-model ensemble (LR + XGBoost + LightGBM) · isotonic calibration · latent strength draws per run · rolling-origin cross-validation · trained on 77 R64 games 2005 to 2025</span>
         <span style={{fontSize:9,color:TEXT_SUBTLE}}>Next.js · React · TypeScript · Tailwind CSS</span>
       </div>
     </div>

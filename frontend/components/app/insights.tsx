@@ -69,7 +69,7 @@ export function DiagnosticsSection({ sim, overrides }: { sim: SimState; override
   return (
     <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Sanity checks — verifies probabilities sum correctly (e.g., all championship %s ≈ 100%) and reports simulation precision.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Verifies probabilities sum correctly (e.g. all championship %s ≈ 100%) and reports simulation precision.</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr" }}>
         <div style={{ padding: "12px 14px", borderRight: `1px solid ${BORDER_INNER}` }}>
@@ -94,11 +94,11 @@ export function DiagnosticsSection({ sim, overrides }: { sim: SimState; override
             { label: "Top-4 title share", value: pct(top4Champ, 1), hint: "Combined championship % of the top 4 teams" },
             { label: "Top-8 title share", value: pct(top8Champ, 1), hint: "Combined championship % of the top 8 teams" },
             { label: "Highest title odds", value: pct(maxChamp, 1), hint: `${maxTeam}'s chance to win the tournament` },
-            { label: `${maxTeam} 95% MOE`, value: `±${moe.toFixed(2)}pp`, hint: "Margin of error — how precise the estimate is at this sample size" },
+            { label: `${maxTeam} 95% MOE`, value: `±${moe.toFixed(2)}pp`, hint: "Margin of error at this sample size" },
             { label: "Avg upset chance", value: pct(avgUpset, 1), hint: "Average first-round upset probability across all R64 games" },
             { label: "35%+ upset games", value: String(highUpset), hint: "Number of R64 games where the underdog has ≥35% win chance" },
             { label: "Assumptions active", value: String(assumptionCount), hint: "Elo adjustments you applied before simulating" },
-            { label: "Monte Carlo runs", value: sim.n_sims.toLocaleString(), hint: "Total bracket simulations run — more runs = higher precision" },
+            { label: "Monte Carlo runs", value: sim.n_sims.toLocaleString(), hint: "Total bracket simulations run. More runs = higher precision." },
           ].map((m) => (
             <div key={m.label} title={m.hint} style={{ border: `1px solid ${BORDER_SUBTLE}`, padding: "8px 10px", cursor: "help" }}>
               <div style={{ fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: TEXT_SUBTLE, marginBottom: 4 }}>{m.label}</div>
@@ -125,14 +125,13 @@ export function DataProvenance({ info }: { info: ModelInfo | null }) {
   );
   return (
     <div style={{ padding: "14px 16px", background: SURFACE }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: "#334155", marginBottom: 10 }}>Data & model</div>
       <Row label="Bracket" value={<>{inf.dataset} · {inf.season} · {inf.teams_in_bracket} teams</>} />
       <Row label="Freeze date" value={inf.selection_sunday_freeze} />
-      <Row label="Training" value={<>{tr.season_min}–{tr.season_max} · {tr.rows} rows</>} />
+      <Row label="Training" value={<>{tr.season_min} to {tr.season_max} · {tr.rows} rows</>} />
       <Row label="Recency" value={tr.recency_weighting} />
       <Row label="Stack" value={stack} />
       <Row label="Calibration" value={md?.calibration || "isotonic"} />
-      <Row label="Features" value={<>{md?.core_feature_count ?? "—"} core + {md?.market_feature_count ?? "—"} market/meta</>} />
+      <Row label="Features" value={<>{md?.core_feature_count ?? "n/a"} core + {md?.market_feature_count ?? "n/a"} market/meta</>} />
       <div style={{ paddingTop: 8, fontSize: 11, color: TEXT_MUTED, lineHeight: 1.5 }}>
         {md?.market_usage || "Vegas odds used as a feature in the model blend"} · {md?.variance_modeling || "Random per-team strength perturbations each sim run to capture game-day variance"}.
       </div>
@@ -194,18 +193,25 @@ export function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: stri
 
   return (
     <div style={{ background: SURFACE }}>
-      <div style={{ padding: PAD_HEADER, borderBottom: `1px solid ${BORDER_SUBTLE}`, background: BG_HEADER, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10, color: TEXT_MUTED }}>Round-by-round advancement odds from Monte Carlo simulation</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 10, color: TEXT_SUBTLE }}>Team</span>
-          <select value={team} onChange={(e) => setTeam(e.target.value)} style={{ height: 30, padding: "0 10px", border: `1px solid ${BORDER_SUBTLE}`, fontSize: 11, background: SURFACE, minWidth: 180 }}>
-            {teams.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+      <div style={{ padding: PAD_HEADER, borderBottom: `1px solid ${BORDER_SUBTLE}`, background: BG_HEADER }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 10, color: TEXT_SUBTLE }}>Team</span>
+            <select value={team} onChange={(e) => setTeam(e.target.value)} style={{ height: 30, padding: "0 10px", border: `1px solid ${BORDER_SUBTLE}`, fontSize: 11, background: SURFACE, minWidth: 180 }}>
+              {teams.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: TEXT_MUTED, lineHeight: 1.6, marginTop: 8 }}>
+          Plays out every game thousands of times with randomized team-strength noise. No two brackets are the same. Percentages show how often each outcome occurred.
+        </div>
+        <div style={{ fontSize: 10, color: TEXT_SUBTLE, marginTop: 4 }}>
+          Model: Logistic Regression + XGBoost + LightGBM ensemble with isotonic calibration, trained on 77 first-round games (2005 to 2025).
         </div>
       </div>
       {!sim.complete ? (
         <div style={{ padding: PAD_BODY, fontSize: 10, color: TEXT_SUBTLE }}>
-          Pick a team and run a simulation to see probabilities.
+          Run a simulation to see round-by-round probabilities.
         </div>
       ) : (
         <>
@@ -216,7 +222,7 @@ export function TeamProbabilityMath({ sim, teams }: { sim: SimState; teams: stri
                   <th style={{ padding: "8px 10px", textAlign: "left", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em" }}>OUTCOME</th>
                   <th title="% of runs where this team reached this round" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em", cursor: "help" }}>CHANCE</th>
                   <th title="Average times this happens in N runs (e.g., 1,480 / 10,000)" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em", cursor: "help" }}>EXPECTED HITS</th>
-                  <th title="95% confidence interval — true probability likely falls in this range" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em", cursor: "help" }}>95% CI</th>
+                  <th title="95% confidence interval for the true probability" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em", cursor: "help" }}>95% CI</th>
                   <th title="Implied American moneyline odds (e.g., +650 means bet $100 to win $650)" style={{ padding: "8px 10px", textAlign: "right", fontSize: 9, color: TEXT_MUTED, letterSpacing: "0.06em", cursor: "help" }}>FAIR ODDS</th>
                 </tr>
               </thead>
@@ -344,7 +350,7 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
   return (
     <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Head-to-head win probability from the ML ensemble (LR + XGBoost + LightGBM). Signal breakdown shows which factors favor each team. Right panel tests how injuries, hot streaks, and pace changes shift the odds.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Head-to-head win probability from the ML ensemble. Signal breakdown shows which factors favor each team. Right panel tests scenario shifts.</div>
       </div>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, display: "flex", gap: 10, alignItems: "center" }}>
         <select value={a} onChange={(e) => setA(e.target.value)} style={selectStyle}>{allTeams.map((team) => <option key={team}>{team}</option>)}</select>
@@ -373,7 +379,7 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
             {disagree && (
               <div style={{ padding: "12px 16px", borderBottom: `1px solid ${BORDER_SUBTLE}` }}>
                 <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: TEXT_SUBTLE, marginBottom: 4 }}>SIGNAL BREAKDOWN</div>
-                <div style={{ fontSize: 8, color: "#bbb", marginBottom: 10 }}>How each stat category favors one team — bar direction and value show deviation from 50/50</div>
+                <div style={{ fontSize: 8, color: "#bbb", marginBottom: 10 }}>Bar direction and value show each category&apos;s deviation from 50/50</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5px 20px" }}>
                   {Object.entries(disagree.signals).map(([key, value]: any) => {
                     const adv = value - 50;
@@ -393,7 +399,7 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
             )}
             {comps?.comps && (
               <div style={{ padding: "12px 16px" }}>
-                <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: TEXT_SUBTLE, marginBottom: 8 }}>HISTORICAL COMPS — {a}-analog won {((comps.historical_win_rate || 0) * 100).toFixed(0)}% of {comps.comps.length} similar games</div>
+                <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: TEXT_SUBTLE, marginBottom: 8 }}>HISTORICAL COMPS: {a}-analog won {((comps.historical_win_rate || 0) * 100).toFixed(0)}% of {comps.comps.length} similar games</div>
                 {comps.comps.slice(0, 4).map((comp: any, i: number) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", borderBottom: `1px solid ${BORDER_SUBTLE}`, fontSize: 10 }}>
                     <span style={{ color: "#ccc", minWidth: 30 }}>{comp.season}</span>
@@ -408,7 +414,7 @@ export function AnalysisSection({ allTeams }: { allTeams: string[] }) {
           </div>
           <div>
             <div style={{ padding: "8px 14px", borderBottom: `1px solid ${BORDER_SUBTLE}`, background: BG_HEADER }}>
-              <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: TEXT_SUBTLE }}>WHAT IF — {a} WIN PROBABILITY</div>
+              <div style={{ fontSize: 9, letterSpacing: "0.1em", fontWeight: 600, color: TEXT_SUBTLE }}>WHAT IF: {a} WIN PROBABILITY</div>
               <div style={{ fontSize: 9, color: "#aaa", marginTop: 2 }}>How {a}&apos;s odds shift under different game-day scenarios</div>
             </div>
             {whatif.map((result: any, i: number) => {
@@ -489,7 +495,7 @@ export function FirstFourSection({ sim }: { sim: SimState }) {
           const winner = pA >= pB ? game.team_a : game.team_b;
           return (
             <div key={i} style={{ padding: "12px 14px", borderRight: i % 2 === 0 ? `1px solid ${BORDER_INNER}` : "none", borderBottom: i < 2 ? `1px solid ${BORDER_INNER}` : "none" }}>
-              <div style={{ fontSize: 9, color: TEXT_SUBTLE, marginBottom: 8 }}>{game.region} {game.seed}-seed — winner plays {game.plays}</div>
+              <div style={{ fontSize: 9, color: TEXT_SUBTLE, marginBottom: 8 }}>{game.region} {game.seed}-seed, winner plays {game.plays}</div>
               {[{ name: game.team_a, p: pA }, { name: game.team_b, p: pB }].map(({ name, p: probability }) => (
                 <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                   <span style={{ flex: 1, fontSize: 11, fontWeight: name === winner ? 600 : 400, color: name === winner ? "#000" : "#999" }}>{name}</span>
@@ -529,7 +535,7 @@ export function ModelVsMarket({ sim }: { sim: SimState }) {
   return (
     <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Where the simulation disagrees with Vegas. MODEL = your sim&apos;s championship % (updates each run). VEGAS = implied % from pre-tournament futures (frozen at Selection Sunday). EDGE = difference — positive means the model is more bullish.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>MODEL = simulated championship %. VEGAS = implied % from pre-tournament futures. EDGE = difference (positive = model more bullish).</div>
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
@@ -589,7 +595,7 @@ export function RegionDifficulty({ sim }: { sim: SimState }) {
   return (
     <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Which regions are stacked and which have soft paths to the Final Four. Efficiency margin is KenPom-style (points per 100 possessions above average). Combined title odds = sum of all championship %s in the region.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Efficiency margin is KenPom-style (pts/100 possessions above avg). Combined title odds = total championship % in the region.</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)" }}>
         {stats.map((stat: any, i: number) => {
@@ -651,7 +657,7 @@ export function SeedHistory({ sim }: { sim: SimState }) {
   return (
     <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
-        <div style={{ fontSize: 10, color: TEXT_MUTED }}>Historical first-round win rate by seed (1985–2024, NCAA tournament). Compare this year&apos;s model-predicted upset chances against how often each seed actually wins.</div>
+        <div style={{ fontSize: 10, color: TEXT_MUTED }}>First-round win rate by seed (1985 to 2024). Compare this year&apos;s predicted upset chances against historical averages.</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
         <div style={{ padding: "14px 16px", borderRight: `1px solid ${BORDER_INNER}` }}>
@@ -680,7 +686,7 @@ export function SeedHistory({ sim }: { sim: SimState }) {
                 <div style={{ fontSize: 9, color: TEXT_SUBTLE }}>
                   Historical: {upset.dog_seed}-seeds win {(historicalUpsetRate * 100).toFixed(0)}% of R64 games
                   {upset.upset_prob > historicalUpsetRate * 100 + 5 && (
-                    <span style={{ color: "#000", fontWeight: 600 }}> — model sees ABOVE-average upset chance</span>
+                    <span style={{ color: "#000", fontWeight: 600 }}> (above-average upset chance)</span>
                   )}
                 </div>
               </div>
@@ -721,7 +727,7 @@ export function BracketValuePicks({ sim, teamsCatalog }: { sim: SimState; teamsC
     <div style={{ border: `1px solid ${BORDER_OUTER}`, background: SURFACE }}>
       <div style={{ padding: "10px 14px", borderBottom: `1px solid ${BORDER_INNER}`, background: BG_HEADER }}>
         <div style={{ fontSize: 10, color: TEXT_MUTED }}>
-          Mid-seeds and underdogs whose simulated championship odds significantly beat their historical seed average — high-ceiling bracket picks.
+          Mid-seeds and underdogs whose simulated championship odds beat their historical seed average. High-ceiling bracket picks.
         </div>
       </div>
       <div style={{ padding: "10px 14px" }}>
@@ -737,7 +743,7 @@ export function BracketValuePicks({ sim, teamsCatalog }: { sim: SimState; teamsC
                   <span style={{ fontSize: 8, color: "#9ca3af", letterSpacing: "0.06em" }}>{t.region}</span>
                 </div>
                 <div style={{ fontSize: 9, color: "#9ca3af", marginTop: 2 }}>
-                  F4: {pct(t.f4Pct, 1)} · Champ: {pct(t.champPct, 1)} · Vegas: {t.vegasChamp > 0 ? pct(t.vegasChamp, 1) : "—"}
+                  F4: {pct(t.f4Pct, 1)} · Champ: {pct(t.champPct, 1)} · Vegas: {t.vegasChamp > 0 ? pct(t.vegasChamp, 1) : "n/a"}
                 </div>
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>

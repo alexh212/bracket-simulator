@@ -12,11 +12,13 @@ export const BG_HEADER = "var(--bg-header)";
 export const BG_ALT = "var(--bg-alt)";
 export const SURFACE = "var(--surface)";
 export const TEXT = "var(--text)";
-/** Secondary body copy / labels — readable on both themes */
+/** Secondary body copy / labels, readable on both themes */
 export const TEXT_MUTED = "var(--text-secondary)";
-/** Quieter hints — maps to --text-muted in CSS (incl. theme-toggle color in dark) */
+/** Quieter hints, maps to --text-muted in CSS (incl. theme-toggle color in dark) */
 export const TEXT_SUBTLE = "var(--text-muted)";
 export const PROGRESS_TRACK = "var(--progress-track)";
+export const ACCENT_PRIMARY = "var(--accent-primary)";
+export const ACCENT_PRIMARY_SOFT = "var(--accent-primary-soft)";
 export const PAD_HEADER = "8px 10px";
 export const PAD_BODY = "14px 16px";
 export const ROUNDS = ["R32", "S16", "E8", "F4", "Final", "Champ"] as const;
