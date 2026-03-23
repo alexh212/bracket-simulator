@@ -44,6 +44,9 @@ _STATUS_MAP = {
 }
 
 
+_ROUND_NAMES = {0: "Round of 64", 1: "Round of 32", 2: "Sweet 16", 3: "Elite 8", 4: "Final Four", 5: "Championship"}
+
+
 @dataclass
 class EspnGame:
     team_a: str
@@ -54,6 +57,7 @@ class EspnGame:
     winner: Optional[str]
     espn_status_raw: str
     detail: str
+    game_date: Optional[str] = None
 
 
 _cache_lock = threading.Lock()
@@ -112,6 +116,16 @@ def _parse_event(event: Dict[str, Any]) -> Optional[EspnGame]:
     competitors = c.get("competitors") or []
     if len(competitors) != 2:
         return None
+
+    game_date: Optional[str] = None
+    raw_date = event.get("date") or c.get("date")
+    if raw_date:
+        try:
+            dt = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+            game_date = dt.strftime("%b %d")
+        except (ValueError, AttributeError):
+            pass
+
     rows = []
     winner_name = None
     for x in competitors:
@@ -134,6 +148,7 @@ def _parse_event(event: Dict[str, Any]) -> Optional[EspnGame]:
         winner=winner_name if mapped == "final" else None,
         espn_status_raw=stype,
         detail=detail,
+        game_date=game_date,
     )
 
 
@@ -161,14 +176,14 @@ def fetch_espn_games_for_dates(dates_yyyymmdd: List[str], timeout_sec: float = 1
 
 
 def fetch_espn_near_today(ttl_sec: float = 45.0) -> List[EspnGame]:
-    """Cached list of ESPN games for UTC yesterday / today / tomorrow."""
+    """Cached list of ESPN games spanning the tournament window (5 days back, 1 forward)."""
     global _cache_events
     now = time.time()
     with _cache_lock:
         if _cache_events is not None and now - _cache_events[0] < ttl_sec:
             return _cache_events[1]
     utc = datetime.now(timezone.utc)
-    dates = [(utc + timedelta(days=i)).strftime("%Y%m%d") for i in (-1, 0, 1)]
+    dates = [(utc + timedelta(days=i)).strftime("%Y%m%d") for i in range(-5, 2)]
     games = fetch_espn_games_for_dates(dates)
     with _cache_lock:
         _cache_events = (time.time(), games)
@@ -189,6 +204,51 @@ def _find_matching_espn(
         if any(pairs):
             return g
     return None
+
+
+def _compute_tournament_status(games: List[Dict[str, Any]]) -> str:
+    """Derive a human-readable tournament status from actual game data."""
+    if not games:
+        return "Not started"
+
+    live_count = sum(1 for g in games if g.get("status") == "live")
+    final_count = sum(1 for g in games if g.get("status") == "final")
+    upcoming_count = sum(1 for g in games if g.get("status") == "upcoming")
+
+    rounds_with_games: Dict[int, Dict[str, int]] = {}
+    for g in games:
+        r = g.get("round", 0)
+        if r not in rounds_with_games:
+            rounds_with_games[r] = {"live": 0, "final": 0, "upcoming": 0}
+        st = g.get("status", "upcoming")
+        if st in rounds_with_games[r]:
+            rounds_with_games[r][st] += 1
+
+    active_round = max(rounds_with_games.keys()) if rounds_with_games else 0
+    for r in sorted(rounds_with_games.keys()):
+        counts = rounds_with_games[r]
+        if counts["live"] > 0 or counts["upcoming"] > 0:
+            active_round = r
+            break
+
+    round_name = _ROUND_NAMES.get(active_round, f"Round {active_round}")
+    counts = rounds_with_games.get(active_round, {})
+
+    if live_count > 0:
+        return f"{round_name} — {live_count} game{'s' if live_count != 1 else ''} live"
+
+    if counts.get("final", 0) > 0 and counts.get("upcoming", 0) > 0:
+        done = counts["final"]
+        total = done + counts["upcoming"]
+        return f"{round_name} — {done}/{total} complete"
+
+    if counts.get("upcoming", 0) > 0 and counts.get("final", 0) == 0:
+        return f"{round_name} — games upcoming"
+
+    if final_count > 0 and upcoming_count == 0 and live_count == 0:
+        return f"{round_name} — complete"
+
+    return round_name
 
 
 def merge_static_with_espn(static_payload: Dict[str, Any], espn_games: List[EspnGame]) -> Dict[str, Any]:
@@ -214,7 +274,6 @@ def merge_static_with_espn(static_payload: Dict[str, Any], espn_games: List[Espn
             merged.append(row)
             continue
         live_hits += 1
-        # Map ESPN home/away order -> our team_a / team_b
         a_on_espn_a = _team_matches(ta, eg.team_a, aliases)
         b_on_espn_b = _team_matches(tb, eg.team_b, aliases)
         if a_on_espn_a and b_on_espn_b:
@@ -242,9 +301,13 @@ def merge_static_with_espn(static_payload: Dict[str, Any], espn_games: List[Espn
             new_row["winner"] = row.get("winner", "")
         if eg.detail:
             new_row["status_detail"] = eg.detail
+        if eg.game_date:
+            new_row["game_date"] = eg.game_date
         merged.append(new_row)
 
     out = {**static_payload, "games": merged}
+    out["tournament_status"] = _compute_tournament_status(merged)
+    out["last_updated"] = datetime.now(timezone.utc).isoformat()
     out["live_scores_source"] = "espn"
     out["live_scores_matched"] = live_hits
     return out

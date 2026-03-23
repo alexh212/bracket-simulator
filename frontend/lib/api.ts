@@ -35,6 +35,8 @@ export interface RealGame {
   status: "final" | "live" | "upcoming";
   /** Clock / period when status is live (from scoreboard API) */
   status_detail?: string;
+  /** Date string from ESPN, e.g. "Mar 20" */
+  game_date?: string;
 }
 
 export interface RealResults {

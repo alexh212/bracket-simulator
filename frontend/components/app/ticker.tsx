@@ -82,8 +82,19 @@ function GameChip({ game }: { game: RealGame }) {
           marginRight: 8,
           letterSpacing: "0.05em",
           textTransform: "uppercase",
+          animation: "pulse-live 2s ease-in-out infinite",
         }}>
           LIVE
+        </span>
+      )}
+      {game.game_date && (
+        <span style={{
+          fontSize: 8,
+          color: TEXT_SUBTLE,
+          marginRight: 6,
+          opacity: 0.7,
+        }}>
+          {game.game_date}
         </span>
       )}
       <span style={{
@@ -107,6 +118,24 @@ function GameChip({ game }: { game: RealGame }) {
   );
 }
 
+function formatLastUpdated(iso: string | null): string | null {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHrs = Math.floor(diffMin / 60);
+    if (diffHrs < 24) return `${diffHrs}h ago`;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return null;
+  }
+}
+
 export default function Ticker({ results }: TickerProps) {
   const scrollGames = useMemo(
     () => (results?.games || []).filter((g) => g.status === "final" || g.status === "live"),
@@ -128,6 +157,7 @@ export default function Ticker({ results }: TickerProps) {
   }).length;
 
   const tickerDuration = Math.max(20, scrollGames.length * 3);
+  const updatedLabel = formatLastUpdated(results.last_updated);
 
   return (
     <div style={{
@@ -146,27 +176,65 @@ export default function Ticker({ results }: TickerProps) {
         background: "#111",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span style={{
-            fontSize: 9,
-            fontWeight: 700,
-            color: "#fff",
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-          }}>
-            {results.live_scores_enabled ? "Scores" : "Results"}
-          </span>
+          {liveCount > 0 && (
+            <span style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 9,
+              fontWeight: 700,
+              color: "#22c55e",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}>
+              <span style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "#22c55e",
+                animation: "pulse-live 2s ease-in-out infinite",
+                flexShrink: 0,
+              }} />
+              LIVE
+            </span>
+          )}
+          {liveCount === 0 && (
+            <span style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: "#fff",
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+            }}>
+              Scores
+            </span>
+          )}
+          {results.tournament_status && (
+            <span style={{
+              fontSize: 9,
+              color: liveCount > 0 ? "#a3e635" : TEXT_MUTED,
+              fontWeight: liveCount > 0 ? 600 : 400,
+            }}>
+              {results.tournament_status}
+            </span>
+          )}
           <span style={{ fontSize: 9, color: TEXT_SUBTLE }}>
             {finalOnly.length} final{liveCount > 0 ? ` · ${liveCount} live` : ""}
-            {finalOnly.length > 0 ? ` · ${upsetCount} upset${upsetCount !== 1 ? "s" : ""}` : ""}
+            {upsetCount > 0 ? ` · ${upsetCount} upset${upsetCount !== 1 ? "s" : ""}` : ""}
           </span>
-          {results.tournament_status && (
-            <span style={{ fontSize: 9, color: TEXT_MUTED }}>
-              · {results.tournament_status}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {updatedLabel && (
+            <span style={{ fontSize: 8, color: TEXT_SUBTLE, opacity: 0.7 }}>
+              {updatedLabel}
             </span>
           )}
           {results.live_scores_enabled && (
-            <span style={{ fontSize: 8, color: TEXT_SUBTLE, opacity: 0.85 }} title="Scores refresh about every minute while the page is open">
-              · auto-refresh ~{Math.round(RESULTS_POLL_MS / 1000)}s
+            <span
+              style={{ fontSize: 8, color: TEXT_SUBTLE, opacity: 0.6 }}
+              title="Scores refresh automatically while the page is open"
+            >
+              ~{Math.round(RESULTS_POLL_MS / 1000)}s refresh
             </span>
           )}
         </div>
