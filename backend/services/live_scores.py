@@ -206,6 +206,15 @@ def _find_matching_espn(
     return None
 
 
+def _canonical_round(game: Dict[str, Any]) -> int:
+    """Map game to a canonical round order (0=R64 .. 5=Championship) across all regions."""
+    region = game.get("region", "")
+    rnd = game.get("round", 0)
+    if region == _FF_REGION:
+        return 4 + rnd  # FF semis=4, championship=5
+    return rnd
+
+
 def _compute_tournament_status(games: List[Dict[str, Any]]) -> str:
     """Derive a human-readable tournament status from actual game data."""
     if not games:
@@ -217,12 +226,12 @@ def _compute_tournament_status(games: List[Dict[str, Any]]) -> str:
 
     rounds_with_games: Dict[int, Dict[str, int]] = {}
     for g in games:
-        r = g.get("round", 0)
-        if r not in rounds_with_games:
-            rounds_with_games[r] = {"live": 0, "final": 0, "upcoming": 0}
+        cr = _canonical_round(g)
+        if cr not in rounds_with_games:
+            rounds_with_games[cr] = {"live": 0, "final": 0, "upcoming": 0}
         st = g.get("status", "upcoming")
-        if st in rounds_with_games[r]:
-            rounds_with_games[r][st] += 1
+        if st in rounds_with_games[cr]:
+            rounds_with_games[cr][st] += 1
 
     active_round = max(rounds_with_games.keys()) if rounds_with_games else 0
     for r in sorted(rounds_with_games.keys()):
@@ -251,18 +260,17 @@ def _compute_tournament_status(games: List[Dict[str, Any]]) -> str:
     return round_name
 
 
-def merge_static_with_espn(static_payload: Dict[str, Any], espn_games: List[EspnGame]) -> Dict[str, Any]:
-    """
-    Overlay live/final scores from ESPN onto static bracket rows when both teams match.
-    Preserves region/round/game_index/seeds from static file.
-    """
-    aliases = _load_aliases()
-    games = static_payload.get("games")
-    if not isinstance(games, list):
-        return static_payload
+_FF_REGION = "FinalFour"
 
+
+def _overlay_espn(
+    games: List[Dict[str, Any]],
+    espn_games: List[EspnGame],
+    aliases: Dict[str, List[str]],
+) -> Tuple[List[Dict[str, Any]], int]:
+    """Overlay ESPN scores onto a list of game dicts. Returns (merged_games, match_count)."""
     merged = []
-    live_hits = 0
+    hits = 0
     for row in games:
         if not isinstance(row, dict):
             merged.append(row)
@@ -273,7 +281,7 @@ def merge_static_with_espn(static_payload: Dict[str, Any], espn_games: List[Espn
         if not eg:
             merged.append(row)
             continue
-        live_hits += 1
+        hits += 1
         a_on_espn_a = _team_matches(ta, eg.team_a, aliases)
         b_on_espn_b = _team_matches(tb, eg.team_b, aliases)
         if a_on_espn_a and b_on_espn_b:
@@ -304,6 +312,150 @@ def merge_static_with_espn(static_payload: Dict[str, Any], espn_games: List[Espn
         if eg.game_date:
             new_row["game_date"] = eg.game_date
         merged.append(new_row)
+    return merged, hits
+
+
+def _winner_info(game: Dict[str, Any]) -> Optional[Tuple[str, int]]:
+    """Return (winner_name, winner_seed) if game is final, else None."""
+    if game.get("status") != "final" or not game.get("winner"):
+        return None
+    w = game["winner"]
+    if w == game.get("team_a"):
+        return w, game.get("seed_a", 0)
+    if w == game.get("team_b"):
+        return w, game.get("seed_b", 0)
+    return w, 0
+
+
+def _auto_advance(
+    games: List[Dict[str, Any]],
+    espn_games: List[EspnGame],
+    aliases: Dict[str, List[str]],
+) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    Auto-generate next-round entries from completed game pairs.
+    Within each region: pairs are (0,1), (2,3), (4,5), (6,7) → next round indices 0-3.
+    Rounds 0-3 are intra-region. Round 4 = Final Four (East vs Midwest, West vs South).
+    Round 5 = Championship.
+    """
+    extra_hits = 0
+
+    for _ in range(6):
+        existing = {(g["region"], g["round"], g["game_index"]) for g in games if isinstance(g, dict)}
+        lookup: Dict[Tuple[str, int, int], Dict[str, Any]] = {}
+        for g in games:
+            if isinstance(g, dict):
+                lookup[(g["region"], g["round"], g["game_index"])] = g
+
+        new_entries: List[Dict[str, Any]] = []
+
+        regions = {g["region"] for g in games if isinstance(g, dict) and g.get("region")}
+        for region in regions:
+            if region == _FF_REGION:
+                continue
+            for rnd in range(4):
+                n_games = 8 >> rnd
+                for pair_start in range(0, n_games, 2):
+                    next_rnd = rnd + 1
+                    next_gi = pair_start // 2
+                    if next_rnd <= 3 and (region, next_rnd, next_gi) in existing:
+                        continue
+                    g1 = lookup.get((region, rnd, pair_start))
+                    g2 = lookup.get((region, rnd, pair_start + 1))
+                    if not g1 or not g2:
+                        continue
+                    w1 = _winner_info(g1)
+                    w2 = _winner_info(g2)
+                    if not w1 or not w2:
+                        continue
+
+                    if next_rnd <= 3:
+                        new_entries.append({
+                            "region": region,
+                            "round": next_rnd,
+                            "game_index": next_gi,
+                            "team_a": w1[0],
+                            "team_b": w2[0],
+                            "seed_a": w1[1],
+                            "seed_b": w2[1],
+                            "score_a": 0,
+                            "score_b": 0,
+                            "winner": "",
+                            "status": "upcoming",
+                        })
+
+        # Final Four semis: round=0 gi=0 (East vs Midwest), round=0 gi=1 (West vs South)
+        # Matches vectorized_sim forced key format: FinalFour:0:0, FinalFour:0:1
+        for gi, (r1, r2) in enumerate([("East", "Midwest"), ("West", "South")]):
+            if (_FF_REGION, 0, gi) in existing:
+                continue
+            c1 = lookup.get((r1, 3, 0))
+            c2 = lookup.get((r2, 3, 0))
+            if not c1 or not c2:
+                continue
+            w1 = _winner_info(c1)
+            w2 = _winner_info(c2)
+            if not w1 or not w2:
+                continue
+            new_entries.append({
+                "region": _FF_REGION,
+                "round": 0,
+                "game_index": gi,
+                "team_a": w1[0],
+                "team_b": w2[0],
+                "seed_a": w1[1],
+                "seed_b": w2[1],
+                "score_a": 0,
+                "score_b": 0,
+                "winner": "",
+                "status": "upcoming",
+            })
+
+        # Championship: round=1 gi=0 — matches FinalFour:1:0
+        if (_FF_REGION, 1, 0) not in existing:
+            sf1 = lookup.get((_FF_REGION, 0, 0))
+            sf2 = lookup.get((_FF_REGION, 0, 1))
+            if sf1 and sf2:
+                w1 = _winner_info(sf1)
+                w2 = _winner_info(sf2)
+                if w1 and w2:
+                    new_entries.append({
+                        "region": _FF_REGION,
+                        "round": 1,
+                        "game_index": 0,
+                        "team_a": w1[0],
+                        "team_b": w2[0],
+                        "seed_a": w1[1],
+                        "seed_b": w2[1],
+                        "score_a": 0,
+                        "score_b": 0,
+                        "winner": "",
+                        "status": "upcoming",
+                    })
+
+        if not new_entries:
+            break
+
+        overlaid, hits = _overlay_espn(new_entries, espn_games, aliases)
+        extra_hits += hits
+        games = games + overlaid
+
+    return games, extra_hits
+
+
+def merge_static_with_espn(static_payload: Dict[str, Any], espn_games: List[EspnGame]) -> Dict[str, Any]:
+    """
+    Overlay live/final scores from ESPN onto static bracket rows when both teams match.
+    Then auto-generate next-round entries from completed pairs and overlay those too.
+    """
+    aliases = _load_aliases()
+    games = static_payload.get("games")
+    if not isinstance(games, list):
+        return static_payload
+
+    merged, live_hits = _overlay_espn(games, espn_games, aliases)
+    merged, extra_hits = _auto_advance(merged, espn_games, aliases)
+    live_hits += extra_hits
 
     out = {**static_payload, "games": merged}
     out["tournament_status"] = _compute_tournament_status(merged)

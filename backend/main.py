@@ -298,7 +298,11 @@ def _load_static_results() -> dict:
 
 @app.get("/results")
 def results():
+    from services.live_scores import _compute_tournament_status
+
     payload = _load_static_results()
+    payload["tournament_status"] = _compute_tournament_status(payload.get("games") or [])
+
     if not ENABLE_LIVE_SCORES:
         payload["live_scores_enabled"] = False
         return payload
