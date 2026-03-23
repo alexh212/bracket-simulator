@@ -198,22 +198,13 @@ export default function Ticker({ results }: TickerProps) {
               LIVE
             </span>
           )}
-          {liveCount === 0 && (
-            <span style={{
-              fontSize: 9,
-              fontWeight: 700,
-              color: "#fff",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-            }}>
-              Scores
-            </span>
-          )}
           {results.tournament_status && (
             <span style={{
-              fontSize: 9,
-              color: liveCount > 0 ? "#a3e635" : TEXT_MUTED,
-              fontWeight: liveCount > 0 ? 600 : 400,
+              fontSize: 10,
+              fontWeight: 700,
+              color: liveCount > 0 ? "#a3e635" : "#fff",
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
             }}>
               {results.tournament_status}
             </span>

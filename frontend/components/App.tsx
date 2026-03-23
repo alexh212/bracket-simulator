@@ -401,23 +401,38 @@ function InitialPickTree({
               }
               const pA = g?.win_prob_a ?? 50;
               const pB = 100 - pA;
+              const slotKey = `${region}:${round}:${idx}`;
+              const realWinnerForSlot = realMap[slotKey];
+              const won = g?.winner;
               return (
-                <div key={`${label}-${idx}`} style={{border:`1px solid ${BORDER_OUTER}`,borderRadius:14,overflow:"hidden",background:SURFACE}}>
-                  <div style={{padding:"3px 8px",background:BG_HEADER,borderBottom:`1px solid ${BORDER_OUTER}`,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:9,color:TEXT_SUBTLE}}>
+                <div key={`${label}-${idx}`} style={{border:`1px solid ${realWinnerForSlot ? "var(--accent-primary)" : BORDER_OUTER}`,borderRadius:14,overflow:"hidden",background:SURFACE}}>
+                  <div style={{padding:"3px 8px",background:realWinnerForSlot ? "var(--accent-primary-soft)" : BG_HEADER,borderBottom:`1px solid ${realWinnerForSlot ? "var(--accent-primary)" : BORDER_OUTER}`,display:"flex",alignItems:"center",justifyContent:"center",gap:4,fontSize:9,color:TEXT_SUBTLE}}>
                     <span style={{fontWeight:600,color:TEXT_MUTED}}>({g?.seed_a})</span>
                     <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{g?.team_a}</span>
                     <span style={{color:"#ccc",fontWeight:700,fontSize:8}}>vs</span>
                     <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}>{g?.team_b}</span>
                     <span style={{fontWeight:600,color:TEXT_MUTED}}>({g?.seed_b})</span>
+                    {realWinnerForSlot && (
+                      <span style={{fontSize:7,fontWeight:700,color:"var(--accent-primary)",letterSpacing:"0.04em",marginLeft:2}}>RESULT</span>
+                    )}
                   </div>
                   {[{name:g?.team_a,seed:g?.seed_a,p:pA},{name:g?.team_b,seed:g?.seed_b,p:pB}].map((t: any, ti: number) => {
-                    const won = g?.winner === t.name;
+                    const simWon = won === t.name;
+                    const isRealWinner = realWinnerForSlot === t.name;
+                    const isRealLoser = realWinnerForSlot && realWinnerForSlot !== t.name;
                     return (
-                      <div key={t.name} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",borderTop:ti===1?`1px solid ${BORDER_INNER}`:"none",background:won?BG_ALT:SURFACE}}>
+                      <div key={t.name} style={{
+                        display:"flex",alignItems:"center",gap:6,padding:"5px 8px",
+                        borderTop:ti===1?`1px solid ${BORDER_INNER}`:"none",
+                        background: isRealWinner ? "var(--accent-primary-soft)" : simWon ? BG_ALT : SURFACE,
+                        opacity: isRealLoser ? 0.45 : 1,
+                      }}>
                         <Seed n={t.seed || 0}/>
-                        <span style={{flex:1,fontSize:10,fontWeight:won?700:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.name}</span>
-                        <span style={{fontSize:9,color:won?TEXT:TEXT_SUBTLE,fontWeight:won?600:400}}>{pct(t.p,1)}</span>
-                        {won && <span style={{fontSize:11,color:"#22c55e",lineHeight:1}}>✓</span>}
+                        <span style={{flex:1,fontSize:10,fontWeight:simWon||isRealWinner?700:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:isRealLoser?"line-through":"none"}}>{t.name}</span>
+                        <span style={{fontSize:9,color:simWon?TEXT:TEXT_SUBTLE,fontWeight:simWon?600:400}}>{pct(t.p,1)}</span>
+                        {isRealWinner && <span style={{fontSize:7,color:"var(--accent-primary)",fontWeight:700,letterSpacing:"0.04em"}}>WON</span>}
+                        {isRealWinner && <span style={{fontSize:11,color:"#22c55e",lineHeight:1}}>✓</span>}
+                        {!realWinnerForSlot && simWon && <span style={{fontSize:11,color:"#22c55e",lineHeight:1}}>✓</span>}
                       </div>
                     );
                   })}
