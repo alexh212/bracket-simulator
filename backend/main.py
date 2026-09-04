@@ -283,6 +283,22 @@ class WhatIfRequest(BaseModel):
         return v
 
 
+@app.get("/")
+def root():
+    """Service index.
+
+    Without this, GET / returns a bare 404, which reads as a dead deployment to
+    anyone who opens the Render URL directly.
+    """
+    return {
+        "service": "Bracket Simulation API",
+        "status": "ok",
+        "docs": "/docs",
+        "health": "/health",
+        "endpoints": ["/results", "/teams", "/model-info", "/simulate/stream"],
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "teams": len(CLEAN)}

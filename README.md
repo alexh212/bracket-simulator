@@ -19,10 +19,14 @@ Lock in your picks, adjust the variance, and watch championship odds shift in re
 FastAPI, Uvicorn, Pydantic, NumPy, Pandas, SciPy, scikit-learn, XGBoost, LightGBM, Joblib, Next.js, React, TypeScript, Tailwind, Vitest, SSE, GitHub Actions, Render
  
 ## Live demo
- 
-https://bracket-simulator-vq00.onrender.com
- 
-API: https://bracketedge-api.onrender.com
+
+**Frontend: currently offline.** The Render free-tier service is suspended, so
+https://bracket-simulator-vq00.onrender.com returns a 503. Run it locally with
+the instructions below.
+
+**API: live** — https://bracketedge-api.onrender.com
+(interactive docs at `/docs`, health at `/health`). The first request after idle
+takes ~45s while the free tier cold-starts.
  
 ## Run locally
  
